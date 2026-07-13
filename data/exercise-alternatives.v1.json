@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "description": "Kuratierte, allgemein bekannte Ersatzübungen für alle 27 Übungen des Ganzkörperplans.",
+  "swapDefaults": {
+    "inheritSets": true,
+    "inheritRepRange": true,
+    "inheritTargetRir": true,
+    "historyMode": "separate_by_exercise_id",
+    "availableScopes": ["session_only", "plan_slot"]
+  },
+  "catalog": [
+    { "id": "barbell-bench-press", "name": "Langhantel-Bankdrücken", "movementPattern": "horizontal_press", "equipment": ["Langhantel", "Bank", "Rack"], "tags": ["freie Last", "schwer skalierbar"] },
+    { "id": "flat-dumbbell-bench-press", "name": "Kurzhantel-Bankdrücken", "movementPattern": "horizontal_press", "equipment": ["Kurzhanteln", "Bank"], "tags": ["freie Last"] },
+    { "id": "machine-chest-press", "name": "Brustpresse Maschine", "movementPattern": "horizontal_press", "equipment": ["Brustpresse"], "tags": ["Maschine", "stabil"] },
+    { "id": "weighted-pushups", "name": "Liegestütz mit Zusatzgewicht", "movementPattern": "horizontal_press", "equipment": ["Körpergewicht", "Gewicht oder Band"], "tags": ["Körpergewicht", "Home Gym"] },
+    { "id": "standard-pushups", "name": "Liegestütz", "movementPattern": "horizontal_press", "equipment": ["Körpergewicht"], "tags": ["Körpergewicht", "Home Gym", "Regression"] },
+    { "id": "assisted-dips", "name": "Unterstützte Dips", "movementPattern": "horizontal_press", "equipment": ["Dip-Maschine oder Band"], "tags": ["Regression", "Maschine"] },
+    { "id": "incline-barbell-bench-press", "name": "Langhantel-Schrägbankdrücken", "movementPattern": "horizontal_press", "equipment": ["Langhantel", "Schrägbank", "Rack"], "tags": ["freie Last", "obere Brust"] },
+    { "id": "incline-machine-chest-press", "name": "Schrägbank-Brustpresse", "movementPattern": "horizontal_press", "equipment": ["Schrägbank-Brustpresse"], "tags": ["Maschine", "stabil", "obere Brust"] },
+
+    { "id": "lat-pulldown-pronated", "name": "Latzug Obergriff", "movementPattern": "vertical_pull", "equipment": ["Latzug"], "tags": ["Kabel", "leicht dosierbar"] },
+    { "id": "lat-pulldown-neutral", "name": "Latzug Neutralgriff", "movementPattern": "vertical_pull", "equipment": ["Latzug", "Neutralgriff"], "tags": ["Kabel", "leicht dosierbar"] },
+    { "id": "assisted-pullups-machine", "name": "Unterstützte Klimmzüge Maschine", "movementPattern": "vertical_pull", "equipment": ["Klimmzugmaschine"], "tags": ["Maschine", "Regression"] },
+    { "id": "band-assisted-pullups", "name": "Klimmzüge mit Band", "movementPattern": "vertical_pull", "equipment": ["Klimmzugstange", "Widerstandsband"], "tags": ["Regression"] },
+
+    { "id": "machine-shoulder-press", "name": "Schulterpresse Maschine", "movementPattern": "vertical_press", "equipment": ["Schulterpresse"], "tags": ["Maschine", "stabil"] },
+    { "id": "landmine-press", "name": "Landmine Press", "movementPattern": "vertical_press", "equipment": ["Langhantel", "Landmine"], "tags": ["schulterfreundliche Option"] },
+    { "id": "handstand-pushup", "name": "Handstand Push-up", "movementPattern": "vertical_press", "equipment": ["Körpergewicht", "Wand optional"], "tags": ["Körpergewicht", "Fortgeschritten"] },
+
+    { "id": "seated-cable-row", "name": "Sitzendes Kabelrudern", "movementPattern": "horizontal_pull", "equipment": ["Kabelzug"], "tags": ["Kabel", "leicht dosierbar"] },
+    { "id": "t-bar-row", "name": "T-Bar Row", "movementPattern": "horizontal_pull", "equipment": ["T-Bar oder Landmine"], "tags": ["freie Last"] },
+    { "id": "one-arm-dumbbell-row", "name": "Einarmiges Kurzhantelrudern", "movementPattern": "horizontal_pull", "equipment": ["Kurzhantel", "Bank"], "tags": ["einseitig", "freie Last"] },
+    { "id": "machine-row", "name": "Rudermaschine", "movementPattern": "horizontal_pull", "equipment": ["Rudermaschine"], "tags": ["Maschine", "stabil"] },
+
+    { "id": "back-squats", "name": "Back Squats", "movementPattern": "knee_dominant", "equipment": ["Langhantel", "Rack"], "tags": ["freie Last", "schwer skalierbar"] },
+    { "id": "hack-squats", "name": "Hack Squats", "movementPattern": "knee_dominant", "equipment": ["Hack-Squat-Maschine"], "tags": ["Maschine", "Quadrizeps"] },
+    { "id": "leg-press", "name": "Beinpresse", "movementPattern": "knee_dominant", "equipment": ["Beinpresse"], "tags": ["Maschine", "stabil"] },
+    { "id": "belt-squats", "name": "Belt Squats", "movementPattern": "knee_dominant", "equipment": ["Belt-Squat-Maschine oder Gürtel"], "tags": ["rückenentlastend"] },
+    { "id": "bodyweight-tempo-squats", "name": "Tempo Squats mit Körpergewicht", "movementPattern": "knee_dominant", "equipment": ["Körpergewicht"], "tags": ["Home Gym", "leicht"] },
+
+    { "id": "dumbbell-rdls", "name": "Kurzhantel-RDLs", "movementPattern": "hip_hinge", "equipment": ["Kurzhanteln"], "tags": ["freie Last"] },
+    { "id": "barbell-hip-thrusts", "name": "Langhantel Hip Thrusts", "movementPattern": "hip_extension", "equipment": ["Langhantel", "Bank"], "tags": ["Gesäß", "schwer skalierbar"] },
+    { "id": "cable-pull-throughs", "name": "Cable Pull-Throughs", "movementPattern": "hip_hinge", "equipment": ["Kabelzug", "Seilgriff"], "tags": ["Kabel", "leicht"] },
+    { "id": "machine-back-extensions", "name": "Rückenstrecker Maschine", "movementPattern": "hip_extension", "equipment": ["Rückenstrecker-Maschine"], "tags": ["Maschine", "stabil"] },
+    { "id": "lying-leg-curls", "name": "Beinbeuger liegend", "movementPattern": "knee_flexion", "equipment": ["Beinbeuger-Maschine"], "tags": ["Maschine", "Beinbeuger-Isolation"] },
+
+    { "id": "preacher-curls", "name": "Preacher Curls", "movementPattern": "elbow_flexion", "equipment": ["Scottbank", "SZ-Stange oder Maschine"], "tags": ["Bizeps", "stabil"] },
+    { "id": "cable-curls", "name": "Kabel-Curls", "movementPattern": "elbow_flexion", "equipment": ["Kabelzug"], "tags": ["Kabel", "Bizeps"] },
+    { "id": "alternating-dumbbell-curls", "name": "Alternierende Kurzhantel-Curls", "movementPattern": "elbow_flexion", "equipment": ["Kurzhanteln"], "tags": ["freie Last", "Bizeps"] },
+    { "id": "incline-dumbbell-curls", "name": "Schrägbank-Curls", "movementPattern": "elbow_flexion", "equipment": ["Kurzhanteln", "Schrägbank"], "tags": ["freie Last", "Bizeps"] },
+
+    { "id": "overhead-cable-triceps-extensions", "name": "Trizepsstrecken über Kopf am Kabel", "movementPattern": "elbow_extension", "equipment": ["Kabelzug", "Seilgriff"], "tags": ["Kabel", "langer Trizepskopf"] },
+    { "id": "skull-crushers", "name": "Skull Crushers", "movementPattern": "elbow_extension", "equipment": ["SZ-Stange oder Kurzhanteln", "Bank"], "tags": ["freie Last", "Trizeps"] },
+    { "id": "close-grip-bench-press", "name": "Enges Bankdrücken", "movementPattern": "elbow_extension", "equipment": ["Langhantel", "Bank", "Rack"], "tags": ["Mehrgelenksübung", "Trizeps"] },
+
+    { "id": "captains-chair-knee-raises", "name": "Knieheben im Captain's Chair", "movementPattern": "core_flexion", "equipment": ["Captain's Chair"], "tags": ["Core", "stabil"] },
+    { "id": "reverse-crunches", "name": "Reverse Crunches", "movementPattern": "core_flexion", "equipment": ["Matte oder Bank"], "tags": ["Core", "Home Gym"] },
+    { "id": "lying-leg-raises", "name": "Beinheben liegend", "movementPattern": "core_flexion", "equipment": ["Matte oder Bank"], "tags": ["Core", "Home Gym"] },
+    { "id": "body-saw", "name": "Body Saw", "movementPattern": "anti_extension", "equipment": ["Slider oder Ringe"], "tags": ["Core", "Home Gym"] },
+    { "id": "stability-ball-rollouts", "name": "Swiss-Ball Rollouts", "movementPattern": "anti_extension", "equipment": ["Gymnastikball"], "tags": ["Core", "Regression"] },
+    { "id": "dead-bug", "name": "Dead Bug", "movementPattern": "anti_extension", "equipment": ["Matte"], "tags": ["Core", "Home Gym", "Regression"] },
+    { "id": "long-lever-plank", "name": "Long-Lever Plank", "movementPattern": "anti_extension", "equipment": ["Matte"], "tags": ["Core", "Home Gym"] },
+
+    { "id": "cable-lateral-raises", "name": "Kabel-Seitheben", "movementPattern": "shoulder_abduction", "equipment": ["Kabelzug"], "tags": ["Kabel", "seitliche Schulter"] },
+    { "id": "machine-lateral-raises", "name": "Seitheben Maschine", "movementPattern": "shoulder_abduction", "equipment": ["Seitheben-Maschine"], "tags": ["Maschine", "stabil"] },
+    { "id": "leaning-lateral-raises", "name": "Leaning Lateral Raises", "movementPattern": "shoulder_abduction", "equipment": ["Kurzhantel", "Stütze"], "tags": ["freie Last", "seitliche Schulter"] },
+
+    { "id": "seated-calf-raises", "name": "Wadenheben sitzend", "movementPattern": "plantar_flexion", "equipment": ["Wadenmaschine sitzend"], "tags": ["Maschine", "Soleus"] },
+    { "id": "leg-press-calf-raises", "name": "Wadenheben an der Beinpresse", "movementPattern": "plantar_flexion", "equipment": ["Beinpresse"], "tags": ["Maschine", "stabil"] },
+    { "id": "single-leg-calf-raises", "name": "Einbeiniges Wadenheben", "movementPattern": "plantar_flexion", "equipment": ["Körpergewicht oder Kurzhantel"], "tags": ["einseitig", "Home Gym"] },
+
+    { "id": "bulgarian-split-squats", "name": "Bulgarian Split Squats", "movementPattern": "knee_dominant_unilateral", "equipment": ["Bank", "Kurzhanteln optional"], "tags": ["einseitig", "freie Last"] },
+    { "id": "reverse-lunges", "name": "Reverse Lunges", "movementPattern": "knee_dominant_unilateral", "equipment": ["Körpergewicht oder Kurzhanteln"], "tags": ["einseitig", "Home Gym"] },
+    { "id": "walking-lunges", "name": "Walking Lunges", "movementPattern": "knee_dominant_unilateral", "equipment": ["Körpergewicht oder Kurzhanteln"], "tags": ["einseitig", "dynamisch"] },
+    { "id": "step-ups", "name": "Step-ups", "movementPattern": "knee_dominant_unilateral", "equipment": ["Box oder Bank", "Kurzhanteln optional"], "tags": ["einseitig"] },
+    { "id": "single-leg-press", "name": "Einbeinige Beinpresse", "movementPattern": "knee_dominant_unilateral", "equipment": ["Beinpresse"], "tags": ["einseitig", "Maschine", "stabil"] }
+  ],
+  "mappings": [
+    { "exerciseId": "weighted-dips", "preferredAlternativeIds": ["flat-dumbbell-bench-press", "barbell-bench-press", "machine-chest-press", "weighted-pushups", "ring-pushups"] },
+    { "exerciseId": "pullups-pronated", "preferredAlternativeIds": ["neutral-grip-pullups", "chinups", "lat-pulldown-pronated", "assisted-pullups-machine", "band-assisted-pullups"] },
+    { "exerciseId": "pike-pushups", "preferredAlternativeIds": ["dumbbell-shoulder-press", "barbell-overhead-press", "landmine-press", "machine-shoulder-press", "handstand-pushup"] },
+    { "exerciseId": "seal-rows", "preferredAlternativeIds": ["chest-supported-rows", "seated-cable-row", "t-bar-row", "one-arm-dumbbell-row", "machine-row"] },
+    { "exerciseId": "goblet-squats", "preferredAlternativeIds": ["leg-press", "hack-squats", "belt-squats", "bodyweight-tempo-squats", "front-squats"] },
+    { "exerciseId": "hyperextensions", "preferredAlternativeIds": ["machine-back-extensions", "cable-pull-throughs", "barbell-hip-thrusts", "good-mornings", "romanian-deadlifts"] },
+    { "exerciseId": "ez-bar-curls", "preferredAlternativeIds": ["cable-curls", "preacher-curls", "alternating-dumbbell-curls", "incline-dumbbell-curls", "hammer-curls"] },
+    { "exerciseId": "ring-triceps-extensions", "preferredAlternativeIds": ["cable-triceps-pushdowns", "overhead-cable-triceps-extensions", "skull-crushers", "close-grip-bench-press", "assisted-dips"] },
+    { "exerciseId": "hanging-knee-raises", "preferredAlternativeIds": ["captains-chair-knee-raises", "reverse-crunches", "lying-leg-raises", "hanging-leg-raises", "dead-bug"] },
+
+    { "exerciseId": "front-squats", "preferredAlternativeIds": ["back-squats", "hack-squats", "leg-press", "belt-squats", "goblet-squats"] },
+    { "exerciseId": "romanian-deadlifts", "preferredAlternativeIds": ["dumbbell-rdls", "good-mornings", "barbell-hip-thrusts", "lying-leg-curls", "hyperextensions"] },
+    { "exerciseId": "dumbbell-shoulder-press", "preferredAlternativeIds": ["machine-shoulder-press", "landmine-press", "barbell-overhead-press", "pike-pushups", "handstand-pushup"] },
+    { "exerciseId": "chinups", "preferredAlternativeIds": ["neutral-grip-pullups", "pullups-pronated", "lat-pulldown-neutral", "assisted-pullups-machine", "band-assisted-pullups"] },
+    { "exerciseId": "inverted-rows", "preferredAlternativeIds": ["seated-cable-row", "machine-row", "one-arm-dumbbell-row", "chest-supported-rows", "seal-rows"] },
+    { "exerciseId": "ring-pushups", "preferredAlternativeIds": ["standard-pushups", "weighted-pushups", "machine-chest-press", "flat-dumbbell-bench-press", "weighted-dips"] },
+    { "exerciseId": "lateral-raises", "preferredAlternativeIds": ["cable-lateral-raises", "machine-lateral-raises", "leaning-lateral-raises"] },
+    { "exerciseId": "standing-calf-raises", "preferredAlternativeIds": ["seated-calf-raises", "leg-press-calf-raises", "single-leg-calf-raises"] },
+    { "exerciseId": "ab-wheel-rollouts", "preferredAlternativeIds": ["stability-ball-rollouts", "body-saw", "long-lever-plank", "dead-bug"] },
+
+    { "exerciseId": "neutral-grip-pullups", "preferredAlternativeIds": ["pullups-pronated", "chinups", "lat-pulldown-neutral", "assisted-pullups-machine", "band-assisted-pullups"] },
+    { "exerciseId": "incline-dumbbell-press", "preferredAlternativeIds": ["incline-barbell-bench-press", "incline-machine-chest-press", "flat-dumbbell-bench-press", "machine-chest-press", "weighted-pushups"] },
+    { "exerciseId": "chest-supported-rows", "preferredAlternativeIds": ["seal-rows", "seated-cable-row", "machine-row", "t-bar-row", "one-arm-dumbbell-row"] },
+    { "exerciseId": "barbell-overhead-press", "preferredAlternativeIds": ["dumbbell-shoulder-press", "machine-shoulder-press", "landmine-press", "pike-pushups", "handstand-pushup"] },
+    { "exerciseId": "atg-split-squats", "preferredAlternativeIds": ["bulgarian-split-squats", "reverse-lunges", "walking-lunges", "step-ups", "single-leg-press"] },
+    { "exerciseId": "good-mornings", "preferredAlternativeIds": ["romanian-deadlifts", "dumbbell-rdls", "barbell-hip-thrusts", "cable-pull-throughs", "hyperextensions"] },
+    { "exerciseId": "cable-triceps-pushdowns", "preferredAlternativeIds": ["ring-triceps-extensions", "overhead-cable-triceps-extensions", "skull-crushers", "close-grip-bench-press", "assisted-dips"] },
+    { "exerciseId": "hammer-curls", "preferredAlternativeIds": ["alternating-dumbbell-curls", "cable-curls", "preacher-curls", "incline-dumbbell-curls", "ez-bar-curls"] },
+    { "exerciseId": "hanging-leg-raises", "preferredAlternativeIds": ["hanging-knee-raises", "captains-chair-knee-raises", "lying-leg-raises", "reverse-crunches", "ab-wheel-rollouts"] }
+  ]
+}
