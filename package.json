@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:cloudflare": "CLOUDFLARE_PAGES=1 next build",
+    "deploy:cloudflare": "npm run build:cloudflare && npx --yes wrangler@3.114.15 pages deploy out --project-name kraftwerk-training --branch main",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

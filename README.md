@@ -13,6 +13,17 @@ npm run dev
 
 Anschließend ist die App unter `http://localhost:3000` erreichbar.
 
+## Cloudflare Pages
+
+Die Produktions-PWA wird als statischer Next.js-Export auf Cloudflare Pages gebaut:
+
+```bash
+npm run build:cloudflare
+npm run deploy:cloudflare
+```
+
+Der normale lokale Build bleibt davon unberührt. Das Deployment verwendet das separate Pages-Projekt `kraftwerk-training` und die kostenlose Adresse `https://kraftwerk-training.pages.dev`.
+
 Qualitätschecks:
 
 ```bash
