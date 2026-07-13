@@ -18,11 +18,13 @@ Anschließend ist die App unter `http://localhost:3000` erreichbar.
 Die Produktions-PWA wird als statischer Next.js-Export auf Cloudflare Pages gebaut:
 
 ```bash
-npm run build:cloudflare
-npm run deploy:cloudflare
+make cloudflare-status
+make cloudflare-deploy
 ```
 
-Der normale lokale Build bleibt davon unberührt. Das Deployment verwendet das separate Pages-Projekt `kraftwerk-training` und die kostenlose Adresse `https://kraftwerk-training.pages.dev`.
+Falls auf dem Rechner noch keine Cloudflare-Anmeldung vorhanden ist, vorher einmal `make cloudflare-login` ausführen. Der normale lokale Build bleibt davon unberührt. Das Deployment verwendet das separate Pages-Projekt `kraftwerk-training` und die kostenlose Adresse `https://kraftwerk-training.pages.dev`.
+
+Das Makefile enthält keine Zugangsdaten. Wrangler speichert die lokale Anmeldung außerhalb des Repositories; API-Tokens oder andere Secrets dürfen nicht in Git eingecheckt werden. Alternativ bleiben `npm run build:cloudflare` und `npm run deploy:cloudflare` direkt verwendbar.
 
 Qualitätschecks:
 
