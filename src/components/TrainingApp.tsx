@@ -292,11 +292,12 @@ export function TrainingApp() {
             paused={paused}
             onResume={resumeTraining}
             onDiscard={discardPausedTraining}
+            onShowStats={() => setView("stats")}
           />
         )}
         {view === "plan" && <PlanView selected={planDay} onSelect={setPlanDay} configuration={planConfiguration} onChange={updatePlan} />}
         {view === "stats" && <StatsView sessions={completed} settings={settings} />}
-        {view === "history" && <HistoryView sessions={completed} settings={settings} onChange={refresh} />}
+        {view === "history" && <HistoryView sessions={completed} settings={settings} onChange={refresh} onShowStats={() => setView("stats")} />}
         {view === "more" && <MoreView sessions={sessions} planConfiguration={planConfiguration} settings={settings} onSettingsChange={updateSettings} onChange={refresh} />}
       </main>
 
@@ -344,6 +345,7 @@ function TodayView({
   paused,
   onResume,
   onDiscard,
+  onShowStats,
 }: {
   nextDay: ConfiguredTrainingDay;
   sessions: WorkoutSession[];
@@ -352,6 +354,7 @@ function TodayView({
   paused?: WorkoutSession;
   onResume: () => void;
   onDiscard: () => void;
+  onShowStats: () => void;
 }) {
   const { locale, t } = useI18n();
   const latest = completed[0];
@@ -409,7 +412,7 @@ function TodayView({
 
         <section className="panel last-session">
           <span className="eyebrow">{t("today.last")}</span>
-          {latest ? <><h3>{t("common.day")} {latest.dayCode} · {localizeDay(latest.dayCode, { name: latest.dayName, focus: latest.focus }, locale).name}</h3><p>{formatDate(latest.completedAt, locale)} · {latestSets} {t(latestSets === 1 ? "common.setSingular" : "common.sets")}</p><div className="quiet-success"><Sparkles size={18} /> {t("today.nextGoal")}</div></> : <><h3>{t("today.none")}</h3><p>{t("today.noneHelp")}</p></>}
+          {latest ? <><h3>{t("common.day")} {latest.dayCode} · {localizeDay(latest.dayCode, { name: latest.dayName, focus: latest.focus }, locale).name}</h3><p>{formatDate(latest.completedAt, locale)} · {latestSets} {t(latestSets === 1 ? "common.setSingular" : "common.sets")}</p><div className="quiet-success"><Sparkles size={18} /> {t("today.nextGoal")}</div><button className="progress-link" onClick={onShowStats}><BarChart3 size={16} /> {t("stats.open")}</button></> : <><h3>{t("today.none")}</h3><p>{t("today.noneHelp")}</p></>}
         </section>
       </div>
 
@@ -771,7 +774,7 @@ function NumberField({ label, value, suffix, min, step, onChange }: { label: str
   return <label className="number-field"><span>{label}</span><div><button onClick={() => onChange(Math.max(min, value - step))}>−</button><input inputMode="decimal" type="number" min={min} step={step} value={value} onChange={(event) => { const next = Number(event.target.value); onChange(Number.isFinite(next) ? Math.max(min, next) : min); }} /><small>{suffix}</small><button onClick={() => onChange(Math.max(min, value + step))}>+</button></div></label>;
 }
 
-function HistoryView({ sessions, settings, onChange }: { sessions: WorkoutSession[]; settings: AppSettings; onChange: () => Promise<void> }) {
+function HistoryView({ sessions, settings, onChange, onShowStats }: { sessions: WorkoutSession[]; settings: AppSettings; onChange: () => Promise<void>; onShowStats: () => void }) {
   const { locale, t } = useI18n();
   const [selected, setSelected] = useState<string | null>(sessions[0]?.id ?? null);
   const [editing, setEditing] = useState<{ sessionId: string; exerciseId: string; set: SetLog; load: number } | null>(null);
@@ -832,7 +835,7 @@ function HistoryView({ sessions, settings, onChange }: { sessions: WorkoutSessio
 
   return (
     <div className="page">
-      <header className="page-header"><div><span className="eyebrow">{t("history.eyebrow")}</span><h1>{t("history.title")}</h1><p>{t("history.subtitle")}</p></div></header>
+      <header className="page-header"><div><span className="eyebrow">{t("history.eyebrow")}</span><h1>{t("history.title")}</h1><p>{t("history.subtitle")}</p></div><button className="learn-link" onClick={onShowStats}><BarChart3 size={17} /> {t("stats.open")}</button></header>
       {saveError && <div className="inline-error" role="alert">{t("storage.saveError")}<button onClick={() => setSaveError(false)} aria-label={t("common.close")}><X size={15} /></button></div>}
       <div className="stat-row"><div><strong>{sessions.length}</strong><span>{t("history.sessions")}</span></div><div><strong>{totalSets}</strong><span>{t("history.workingSets")}</span></div><div><strong>{new Set(sessions.flatMap((s) => s.exercises.filter((e) => e.sets.length).map((e) => e.exerciseId))).size}</strong><span>{t("history.exercises")}</span></div></div>
       {sessions.length === 0 ? <div className="empty-state"><History size={38} /><h2>{t("history.empty")}</h2><p>{t("history.emptyHelp")}</p></div> : <div className="history-layout"><div className="session-list">{sessions.map((session) => { const setCount = session.exercises.reduce((sum, ex) => sum + ex.sets.length, 0); return <button key={session.id} onClick={() => setSelected(session.id)} className={selected === session.id ? "active" : ""}><span className="session-code" style={{ background: dayColor[session.dayCode] }}>{session.dayCode}</span><span><strong>{localizeDay(session.dayCode, { name: session.dayName, focus: session.focus }, locale).name}</strong><small>{formatDate(session.completedAt, locale)} · {countSets(setCount)}</small></span><ChevronRight /></button>; })}</div>{detail && <section className="session-detail"><span className="eyebrow">{t("common.day")} {detail.dayCode}</span><h2>{localizeDay(detail.dayCode, { name: detail.dayName, focus: detail.focus }, locale).name}</h2>{detail.exercises.filter((ex) => ex.sets.length).map((exercise) => { const movement = sessionMovement(exercise, locale); return <div key={exercise.id}><strong>{localizeExerciseName(exercise.exerciseId, exercise.name, locale)}</strong><span className="history-exercise-meta">{localizeMuscles(exercise.primaryMuscles, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></span><div className="history-set-list">{exercise.sets.map((set) => <span key={set.id}><span>{t("common.set")} {set.setNumber}: {setText(set)}</span><span><button aria-label={t("workout.editSet")} onClick={() => setEditing({ sessionId: detail.id, exerciseId: exercise.id, set, load: displayLoad(set.load, settings.unit) ?? 0 })}><Pencil size={14} /></button><button aria-label={t("workout.deleteSet")} onClick={() => deleteHistorySet(detail, exercise.id, set.id)}><Trash2 size={14} /></button></span></span>)}</div><small>{localizeRecommendation(recommendation(exercise), locale)}</small></div>; })}</section>}</div>}
