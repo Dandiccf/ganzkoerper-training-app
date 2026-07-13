@@ -246,6 +246,13 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(200,255,61,.
 .button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
 .button-row button, .danger-button { min-height: 48px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; cursor: pointer; font-weight: 700; }
 .danger-button { width: 100%; color: var(--danger); margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 7px; }
+.settings-source-card { min-height: 92px; display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 15px; padding: 17px 20px; border: 1px solid #4b2923; border-radius: 15px; background: #1f1715; color: var(--ink); text-decoration: none; }
+.settings-source-card:hover { border-color: #ff7158; background: #251916; }
+.settings-source-icon { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 12px; background: #d74c36; color: white; }
+.settings-source-card strong, .settings-source-card small { display: block; }
+.settings-source-card strong { line-height: 1.35; }
+.settings-source-card small { margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.settings-source-action { display: inline-flex; align-items: center; gap: 7px; color: #ff907b; font-size: 11px; font-weight: 800; white-space: nowrap; }
 .about { color: var(--muted); font-size: 12px; line-height: 1.5; }
 
 /* Grundidee */
@@ -573,6 +580,9 @@ h1, h2, h3, .brand strong { font-family: "Arial Narrow", "Helvetica Neue", Arial
   .exercise-queue > button { grid-template-columns: 34px 1fr auto; padding: 8px 9px; }
   .queue-muscles .movement-chip { max-width: 170px; white-space: normal; line-height: 1.2; }
   .queue-action { font-size: 0; }
+  .settings-source-card { grid-template-columns: 42px 1fr; padding: 15px; }
+  .settings-source-icon { width: 40px; height: 40px; }
+  .settings-source-action { grid-column: 2; }
   .stat-row { gap: 7px; }
   .stat-row > div { padding: 14px 10px; }
   .stat-row strong { font-size: 25px; }

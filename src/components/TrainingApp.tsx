@@ -9,6 +9,7 @@ import {
   CircleUserRound,
   Clock3,
   Dumbbell,
+  ExternalLink,
   History,
   Home,
   ListChecks,
@@ -24,6 +25,7 @@ import {
   TimerReset,
   Trash2,
   X,
+  Youtube,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -563,6 +565,7 @@ function MoreView({ sessions, planConfiguration, onChange }: { sessions: Workout
     <div className="page settings-page">
       <header className="page-header"><div><span className="eyebrow">{t("settings.eyebrow")}</span><h1>{t("settings.title")}</h1><p>{t("settings.subtitle")}</p></div></header>
       <section className="settings-section"><h2>{t("settings.training")}</h2><div className="setting-row language-setting"><span><strong>{t("language.label")}</strong><small>{t("language.auto")}, DE, EN</small></span><LanguageSwitcher /></div><div className="setting-row"><span><strong>{t("settings.units")}</strong><small>{t("settings.unitsHelp")}</small></span><div className="segmented"><button className={unit === "kg" ? "active" : ""} onClick={() => setUnit("kg")}>kg</button><button className={unit === "lb" ? "active" : ""} onClick={() => setUnit("lb")}>lb</button></div></div><div className="setting-row"><span><strong>{t("settings.timer")}</strong><small>{t("settings.timerHelp")}</small></span><span>75–180 s</span></div></section>
+      <section className="settings-section"><h2>{t("settings.source")}</h2><a className="settings-source-card" href="https://www.youtube.com/watch?v=I7UtSo0NTaA" target="_blank" rel="noreferrer"><span className="settings-source-icon"><Youtube size={25} /></span><span><strong>„MEHR MUSKELN in WENIGER ZEIT (kompletter Trainingsplan)“</strong><small>{t("settings.sourceDescription")}</small></span><span className="settings-source-action">{t("settings.sourceLink")} <ExternalLink size={16} /></span></a></section>
       <section className="settings-section"><h2>{t("settings.data")}</h2><div className="data-card"><div><strong>{completedCount} {t("settings.saved")}</strong><small>{t("settings.deviceOnly")}</small></div><span className="offline-pill"><span /> {t("settings.safe")}</span></div><div className="button-row"><button onClick={() => download("kraftwerk-training.json", "application/json", JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), sessions, planConfiguration }, null, 2))}>{t("settings.exportJson")}</button><button onClick={exportCsv}>{t("settings.exportCsv")}</button></div><button className="danger-button" onClick={clearData}><Trash2 size={17} /> {t("settings.delete")}</button></section>
       <section className="settings-section about"><h2>{t("settings.about")}</h2><p>Version 0.1.0 · Local-first PWA</p><p>{t("settings.disclaimer")}</p></section>
     </div>
