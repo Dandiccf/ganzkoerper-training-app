@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextDayCode, recommendation, type SessionExercise, type WorkoutSession } from "../domain";
+import { activateSessionExercise, nextDayCode, recommendation, type SessionExercise, type WorkoutSession } from "../domain";
 
 describe("training rotation", () => {
   it("starts at A without history", () => expect(nextDayCode([])).toBe("A"));
@@ -28,5 +28,30 @@ describe("progression", () => {
   it("holds the load while reps remain", () => {
     const exercise = { ...base, sets: [{ reps: 9, rir: 2 }, { reps: 8, rir: 1 }] } as SessionExercise;
     expect(recommendation(exercise)).toContain("Last halten");
+  });
+});
+
+describe("free exercise order", () => {
+  it("keeps partial sets when switching to another exercise", () => {
+    const session = {
+      exercises: [
+        { id: "first", status: "active", targetSets: 2, sets: [{ id: "set-1" }] },
+        { id: "second", status: "pending", targetSets: 2, sets: [] },
+      ],
+    } as WorkoutSession;
+
+    const result = activateSessionExercise(session, "second");
+
+    expect(result.exercises[0].status).toBe("pending");
+    expect(result.exercises[0].sets).toHaveLength(1);
+    expect(result.exercises[1].status).toBe("active");
+  });
+
+  it("does not reopen a completed exercise", () => {
+    const session = {
+      exercises: [{ id: "done", status: "completed", targetSets: 2, sets: [{}, {}] }],
+    } as WorkoutSession;
+
+    expect(activateSessionExercise(session, "done")).toBe(session);
   });
 });

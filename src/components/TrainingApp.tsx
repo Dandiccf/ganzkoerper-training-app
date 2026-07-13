@@ -9,6 +9,7 @@ import {
   Dumbbell,
   History,
   Home,
+  ListChecks,
   MoreHorizontal,
   Pause,
   Play,
@@ -23,6 +24,7 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  activateSessionExercise,
   createSession,
   nextDayCode,
   recommendation,
@@ -254,6 +256,7 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
   const [timerEnd, setTimerEnd] = useState<number | null>(null);
   const [remaining, setRemaining] = useState(0);
   const [showAlternatives, setShowAlternatives] = useState(false);
+  const [showExercisePicker, setShowExercisePicker] = useState(false);
 
   useEffect(() => {
     if (!timerEnd) return;
@@ -328,12 +331,24 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
     setShowAlternatives(false);
   }
 
+  async function chooseExercise(id: string) {
+    const next = activateSessionExercise(session, id);
+    const selected = next.exercises.find((item) => item.id === id);
+    if (!selected) return;
+    const lastSet = selected.sets.at(-1);
+    setLoad(lastSet?.load ?? 0);
+    setReps(lastSet?.reps ?? selected.repMin);
+    setRir(lastSet?.rir ?? 2);
+    await update(next);
+    setShowExercisePicker(false);
+  }
+
   const allHandled = session.exercises.every((item) => item.status === "completed" || item.status === "skipped");
   return (
     <div className="workout-shell">
       <header className="workout-header">
         <button className="icon-button" onClick={() => void onChange()} aria-label="Training pausieren"><Pause size={20} /></button>
-        <div><span>TAG {session.dayCode} · {session.dayName}</span><strong>{currentIndex + 1} von {session.exercises.length} Übungen</strong></div>
+        <button className="workout-progress-button" onClick={() => setShowExercisePicker(true)}><span>TAG {session.dayCode} · {session.dayName}</span><strong><ListChecks size={15} /> Übung {currentIndex + 1} von {session.exercises.length}</strong></button>
         <button className="finish-link" onClick={finish}>{allHandled ? "Abschließen" : "Früh beenden"}</button>
       </header>
       <div className="progress-track"><span style={{ width: `${(completedSets / totalSets) * 100}%` }} /></div>
@@ -348,7 +363,7 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
           <span className="eyebrow">{exercise.primaryMuscles.join(" · ")}</span>
           <h1>{exercise.name}</h1>
           <p className="cue">{exercise.techniqueCue}</p>
-          <button className="text-button" onClick={() => setShowAlternatives(true)}><RefreshCw size={16} /> Übung ersetzen</button>
+          <div className="workout-secondary-actions"><button className="text-button" onClick={() => setShowExercisePicker(true)}><ListChecks size={16} /> Andere Übung wählen</button><button className="text-button" onClick={() => setShowAlternatives(true)}><RefreshCw size={16} /> Übung ersetzen</button></div>
         </section>
 
         <section className="set-entry">
@@ -368,6 +383,8 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
       {timerEnd && <div className="timer-bar"><TimerReset size={22} /><div><span>Pause</span><strong>{formatDuration(remaining)}</strong></div><button onClick={() => setTimerEnd((value) => (value ?? Date.now()) + 15_000)}>+15s</button><button onClick={() => setTimerEnd(null)}>Überspringen</button></div>}
 
       {showAlternatives && <div className="modal-backdrop" onClick={() => setShowAlternatives(false)}><section className="modal" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">Nur für heute</span><h2>Übung ersetzen</h2></div><button className="icon-button" onClick={() => setShowAlternatives(false)}><X /></button></header><div className="alternative-list">{alternativesFor(exercise.originalExerciseId ?? exercise.exerciseId).map((item) => <button key={item.id} onClick={() => replace(item.id, item.name)}><span><strong>{item.name}</strong><small>{item.equipment.join(" · ")}</small></span><ChevronRight /></button>)}</div></section></div>}
+
+      {showExercisePicker && <div className="modal-backdrop" onClick={() => setShowExercisePicker(false)}><section className="modal exercise-picker" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">Freie Reihenfolge</span><h2>Was ist gerade frei?</h2><p>Wechsle zu einer offenen Übung. Deine bisherigen Sätze bleiben gespeichert.</p></div><button className="icon-button" onClick={() => setShowExercisePicker(false)}><X /></button></header><div className="exercise-queue">{session.exercises.map((item, index) => { const isCurrent = item.id === exercise.id; const isDone = item.status === "completed"; return <button key={item.id} disabled={isCurrent || isDone} className={`${isCurrent ? "current" : ""} ${isDone ? "done" : ""}`} onClick={() => chooseExercise(item.id)}><span className="queue-number">{isDone ? <Check size={16} /> : index + 1}</span><span className="queue-copy"><strong>{item.name}</strong><small>{item.sets.length} von {item.targetSets} Sätzen · {isCurrent ? "Gerade aktiv" : isDone ? "Abgeschlossen" : item.status === "skipped" ? "Übersprungen" : "Offen"}</small></span>{!isCurrent && !isDone && <span className="queue-action">Jetzt <ChevronRight size={16} /></span>}</button>; })}</div></section></div>}
 
       {allHandled && <div className="completion-dock"><div><Sparkles /><span><strong>Einheit geschafft</strong><small>{completedSets} Sätze protokolliert</small></span></div><button className="primary-button" onClick={finish}>Training abschließen</button></div>}
     </div>

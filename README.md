@@ -27,6 +27,7 @@ npm run check
 - Heute-Ansicht mit automatischer A/B/C-Rotation.
 - Vollständiger Planbrowser für alle 27 Übungen.
 - Aktiver Trainingsmodus mit Last, Wiederholungen und RIR.
+- Freie Übungsreihenfolge innerhalb einer Session, etwa bei belegten Geräten.
 - Satzabschluss, Überspringen und Übungstausch für die aktuelle Session.
 - Pausentimer auf Basis eines absoluten Endzeitpunkts.
 - Automatische Wiederherstellung laufender Trainings nach einem Reload.

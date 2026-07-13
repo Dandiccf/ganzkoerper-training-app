@@ -97,6 +97,23 @@ export function replaceSessionExercise(
   };
 }
 
+export function activateSessionExercise(session: WorkoutSession, exerciseId: string): WorkoutSession {
+  const target = session.exercises.find((exercise) => exercise.id === exerciseId);
+  if (!target || target.status === "completed") return session;
+
+  return {
+    ...session,
+    exercises: session.exercises.map((exercise) => {
+      if (exercise.id === exerciseId) return { ...exercise, status: "active" as const };
+      if (exercise.status !== "active") return exercise;
+      return {
+        ...exercise,
+        status: exercise.sets.length >= exercise.targetSets ? "completed" as const : "pending" as const,
+      };
+    }),
+  };
+}
+
 export function recommendation(exercise: SessionExercise) {
   if (exercise.sets.length < exercise.targetSets) return "Noch keine Empfehlung";
   const atTop = exercise.sets.every((set) => set.reps >= exercise.repMax && (set.rir ?? 0) >= 1);
