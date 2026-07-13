@@ -37,7 +37,7 @@ npm run check
 - Pausentimer auf Basis eines absoluten Endzeitpunkts.
 - Automatische Wiederherstellung laufender Trainings nach einem Reload.
 - Lokale Historie und einfache Progressionsempfehlungen.
-- Datenexport als JSON und CSV.
+- Vollständiger, validierter JSON-Export und -Import für Verlauf, Masterplan, Übungsreihenfolge, Slots, Alternativen und Einstellungen; zusätzlicher CSV-Export.
 - IndexedDB-Persistenz über Dexie und Service Worker für die PWA-App-Shell.
 - Druckfertige PDF mit Wochenplan, Trainingstagen, Progression und Protokoll liegt vor.
 - Alle drei Originalvorlagen wurden archiviert.

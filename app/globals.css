@@ -243,8 +243,14 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(200,255,61,.
 .segmented button { border: 0; background: transparent; padding: 8px 13px; border-radius: 7px; cursor: pointer; }
 .segmented button.active { background: white; box-shadow: 0 2px 6px rgba(0,0,0,.08); }
 .data-card { border-radius: 15px; }
-.button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-.button-row button, .danger-button { min-height: 48px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; cursor: pointer; font-weight: 700; }
+.import-help { margin: 12px 2px 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.button-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+.button-row button, .button-row .import-button, .danger-button { min-height: 48px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; cursor: pointer; font-weight: 700; }
+.button-row .import-button { display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 13px; }
+.import-button input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.import-status { margin: 10px 2px 0; font-size: 11px; font-weight: 800; }
+.import-status.success { color: var(--green); }
+.import-status.error { color: var(--danger); }
 .danger-button { width: 100%; color: var(--danger); margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 7px; }
 .settings-source-card { min-height: 92px; display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 15px; padding: 17px 20px; border: 1px solid #4b2923; border-radius: 15px; background: #1f1715; color: var(--ink); text-decoration: none; }
 .settings-source-card:hover { border-color: #ff7158; background: #251916; }
@@ -583,6 +589,7 @@ h1, h2, h3, .brand strong { font-family: "Arial Narrow", "Helvetica Neue", Arial
   .settings-source-card { grid-template-columns: 42px 1fr; padding: 15px; }
   .settings-source-icon { width: 40px; height: 40px; }
   .settings-source-action { grid-column: 2; }
+  .button-row { grid-template-columns: 1fr; }
   .stat-row { gap: 7px; }
   .stat-row > div { padding: 14px 10px; }
   .stat-row strong { font-size: 25px; }

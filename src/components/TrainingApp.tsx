@@ -24,6 +24,7 @@ import {
   Sparkles,
   TimerReset,
   Trash2,
+  Upload,
   X,
   Youtube,
 } from "lucide-react";
@@ -39,7 +40,8 @@ import {
   type SessionExercise,
   type WorkoutSession,
 } from "@/src/lib/domain";
-import { deleteAllData, loadPlanConfiguration, loadSessions, savePlanConfiguration, saveSession } from "@/src/lib/db";
+import { createBackup, parseBackup } from "@/src/lib/backup";
+import { deleteAllData, loadPlanConfiguration, loadSessions, replaceAllData, savePlanConfiguration, saveSession } from "@/src/lib/db";
 import {
   LanguageSwitcher,
   localizeCue,
@@ -536,8 +538,9 @@ function HistoryView({ sessions }: { sessions: WorkoutSession[] }) {
 }
 
 function MoreView({ sessions, planConfiguration, onChange }: { sessions: WorkoutSession[]; planConfiguration: PlanConfiguration; onChange: () => Promise<void> }) {
-  const { t } = useI18n();
-  const [unit, setUnit] = useState("kg");
+  const { preference, setPreference, t } = useI18n();
+  const [unit, setUnit] = useState<"kg" | "lb">("kg");
+  const [importStatus, setImportStatus] = useState<"idle" | "success" | "error">("idle");
   const completedCount = useMemo(() => sessions.filter((session) => session.status === "completed").length, [sessions]);
 
   function download(name: string, type: string, content: string) {
@@ -555,6 +558,22 @@ function MoreView({ sessions, planConfiguration, onChange }: { sessions: Workout
     download("kraftwerk-training.csv", "text/csv;charset=utf-8", rows.join("\n"));
   }
 
+  async function importJson(file: File | undefined) {
+    if (!file) return;
+    setImportStatus("idle");
+    try {
+      const backup = parseBackup(JSON.parse(await file.text()));
+      if (!window.confirm(t("settings.confirmImport"))) return;
+      await replaceAllData(backup.sessions, backup.planConfiguration);
+      setUnit(backup.preferences.unit);
+      setPreference(backup.preferences.language);
+      await onChange();
+      setImportStatus("success");
+    } catch {
+      setImportStatus("error");
+    }
+  }
+
   async function clearData() {
     if (!window.confirm(t("settings.confirmDelete"))) return;
     await deleteAllData();
@@ -566,7 +585,7 @@ function MoreView({ sessions, planConfiguration, onChange }: { sessions: Workout
       <header className="page-header"><div><span className="eyebrow">{t("settings.eyebrow")}</span><h1>{t("settings.title")}</h1><p>{t("settings.subtitle")}</p></div></header>
       <section className="settings-section"><h2>{t("settings.training")}</h2><div className="setting-row language-setting"><span><strong>{t("language.label")}</strong><small>{t("language.auto")}, DE, EN</small></span><LanguageSwitcher /></div><div className="setting-row"><span><strong>{t("settings.units")}</strong><small>{t("settings.unitsHelp")}</small></span><div className="segmented"><button className={unit === "kg" ? "active" : ""} onClick={() => setUnit("kg")}>kg</button><button className={unit === "lb" ? "active" : ""} onClick={() => setUnit("lb")}>lb</button></div></div><div className="setting-row"><span><strong>{t("settings.timer")}</strong><small>{t("settings.timerHelp")}</small></span><span>75–180 s</span></div></section>
       <section className="settings-section"><h2>{t("settings.source")}</h2><a className="settings-source-card" href="https://www.youtube.com/watch?v=I7UtSo0NTaA" target="_blank" rel="noreferrer"><span className="settings-source-icon"><Youtube size={25} /></span><span><strong>„MEHR MUSKELN in WENIGER ZEIT (kompletter Trainingsplan)“</strong><small>{t("settings.sourceDescription")}</small></span><span className="settings-source-action">{t("settings.sourceLink")} <ExternalLink size={16} /></span></a></section>
-      <section className="settings-section"><h2>{t("settings.data")}</h2><div className="data-card"><div><strong>{completedCount} {t("settings.saved")}</strong><small>{t("settings.deviceOnly")}</small></div><span className="offline-pill"><span /> {t("settings.safe")}</span></div><div className="button-row"><button onClick={() => download("kraftwerk-training.json", "application/json", JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), sessions, planConfiguration }, null, 2))}>{t("settings.exportJson")}</button><button onClick={exportCsv}>{t("settings.exportCsv")}</button></div><button className="danger-button" onClick={clearData}><Trash2 size={17} /> {t("settings.delete")}</button></section>
+      <section className="settings-section"><h2>{t("settings.data")}</h2><div className="data-card"><div><strong>{completedCount} {t("settings.saved")}</strong><small>{t("settings.deviceOnly")}</small></div><span className="offline-pill"><span /> {t("settings.safe")}</span></div><p className="import-help">{t("settings.importHelp")}</p><div className="button-row"><button onClick={() => download("kraftwerk-training.json", "application/json", JSON.stringify(createBackup(sessions, planConfiguration, { language: preference, unit }), null, 2))}>{t("settings.exportJson")}</button><label className="import-button"><Upload size={17} /> {t("settings.importJson")}<input type="file" accept="application/json,.json" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; void importJson(file); }} /></label><button onClick={exportCsv}>{t("settings.exportCsv")}</button></div>{importStatus !== "idle" && <p className={`import-status ${importStatus}`} role="status">{t(importStatus === "success" ? "settings.importSuccess" : "settings.importError")}</p>}<button className="danger-button" onClick={clearData}><Trash2 size={17} /> {t("settings.delete")}</button></section>
       <section className="settings-section about"><h2>{t("settings.about")}</h2><p>Version 0.1.0 · Local-first PWA</p><p>{t("settings.disclaimer")}</p></section>
     </div>
   );

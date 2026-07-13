@@ -34,6 +34,15 @@ export async function savePlanConfiguration(configuration: PlanConfiguration) {
   await db.plans.put(configuration);
 }
 
+export async function replaceAllData(sessions: WorkoutSession[], configuration: PlanConfiguration) {
+  await db.transaction("rw", db.sessions, db.plans, async () => {
+    await db.sessions.clear();
+    await db.plans.clear();
+    await db.sessions.bulkPut(sessions);
+    await db.plans.put(configuration);
+  });
+}
+
 export async function deleteAllData() {
   await db.transaction("rw", db.sessions, db.plans, async () => {
     await db.sessions.clear();
