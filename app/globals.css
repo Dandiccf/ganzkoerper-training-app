@@ -209,8 +209,8 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .completion-dock > div { display: flex; gap: 12px; align-items: center; }
 .completion-dock strong, .completion-dock small { display: block; }
 .completion-dock small { color: rgba(255,255,255,.55); margin-top: 3px; }
-.modal-backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(20,30,26,.6); backdrop-filter: blur(4px); display: grid; place-items: center; padding: 20px; }
-.modal { width: min(570px, 100%); max-height: 82vh; overflow: auto; background: var(--surface); border-radius: 22px; padding: 26px; box-shadow: 0 30px 80px rgba(0,0,0,.3); }
+.modal-backdrop { position: fixed; inset: 0; z-index: 100; width: 100%; height: 100vh; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; background: rgba(20,30,26,.6); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); touch-action: pan-y; isolation: isolate; }
+.modal { width: min(570px, 100%); max-height: calc(100vh - 40px); max-height: calc(100dvh - max(40px, env(safe-area-inset-top)) - max(40px, env(safe-area-inset-bottom))); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; background: var(--surface); border-radius: 22px; padding: 26px; box-shadow: 0 30px 80px rgba(0,0,0,.3); touch-action: pan-y; }
 .modal header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px; }
 .modal h2 { font: 500 30px Georgia, serif; margin: 7px 0 0; }
 .modal .icon-button { background: #eeeae2; }
@@ -667,7 +667,9 @@ h1, h2, h3, .brand strong { font-family: "Arial Narrow", "Helvetica Neue", Arial
   .resume-card > div:last-child { align-items: stretch; flex-direction: column; }
   .connection-status { position: absolute; top: 9px; right: 10px; }
   .timer-bar { grid-template-columns: 24px 1fr repeat(3, auto); }
-  .exercise-picker { padding: 20px 14px; max-height: 90vh; }
+  .modal-backdrop { align-items: flex-end; padding: max(12px, env(safe-area-inset-top)) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+  .modal { width: 100%; max-height: calc(100vh - 12px); max-height: calc(100dvh - max(12px, env(safe-area-inset-top))); border-radius: 22px 22px 0 0; padding-bottom: max(22px, env(safe-area-inset-bottom)); }
+  .exercise-picker { padding: 20px 14px max(22px, env(safe-area-inset-bottom)); }
   .exercise-queue > button { grid-template-columns: 34px 1fr auto; padding: 8px 9px; }
   .queue-muscles .movement-chip { max-width: 170px; white-space: normal; line-height: 1.2; }
   .queue-action { font-size: 0; }
