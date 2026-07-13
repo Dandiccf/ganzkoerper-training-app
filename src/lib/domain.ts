@@ -1,5 +1,8 @@
 import type { DayCode, PlanExercise, TrainingDay } from "./schema";
 
+type SessionPlanExercise = PlanExercise & { baseExerciseId?: string };
+type SessionTrainingDay = Omit<TrainingDay, "exercises"> & { exercises: SessionPlanExercise[] };
+
 export type SetLog = {
   id: string;
   setNumber: number;
@@ -50,7 +53,7 @@ export function nextDayCode(sessions: WorkoutSession[]): DayCode {
   return rotation[(rotation.indexOf(completed[0].dayCode) + 1) % rotation.length];
 }
 
-export function createSession(day: TrainingDay): WorkoutSession {
+export function createSession(day: SessionTrainingDay): WorkoutSession {
   const sessionId = crypto.randomUUID();
   return {
     id: sessionId,
@@ -64,10 +67,13 @@ export function createSession(day: TrainingDay): WorkoutSession {
   };
 }
 
-function snapshotExercise(exercise: PlanExercise, index: number, sessionId: string): SessionExercise {
+function snapshotExercise(exercise: SessionPlanExercise, index: number, sessionId: string): SessionExercise {
   return {
-    id: `${sessionId}-${exercise.id}`,
+    id: `${sessionId}-${index}-${exercise.id}`,
     exerciseId: exercise.id,
+    originalExerciseId: exercise.baseExerciseId && exercise.baseExerciseId !== exercise.id
+      ? exercise.baseExerciseId
+      : undefined,
     name: exercise.name,
     movementPattern: exercise.movementPattern,
     position: index + 1,

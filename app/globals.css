@@ -41,6 +41,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(200,255,61,.
 .page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 34px; }
 .page-header h1 { font-family: Georgia, serif; font-weight: 500; font-size: clamp(34px, 4vw, 52px); line-height: 1.04; letter-spacing: -.03em; margin: 8px 0 10px; max-width: 760px; }
 .page-header p { margin: 0; color: var(--muted); font-size: 16px; }
+.page-header-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
 .eyebrow { color: var(--green); text-transform: uppercase; font-size: 11px; font-weight: 800; letter-spacing: .16em; }
 .offline-pill { flex: none; display: inline-flex; align-items: center; gap: 7px; color: var(--green); border: 1px solid #cbd9cf; background: rgba(255,255,255,.5); padding: 8px 12px; border-radius: 99px; font-size: 12px; font-weight: 700; }
 .offline-pill > span { width: 7px; height: 7px; border-radius: 50%; background: #4f8d65; }
@@ -79,6 +80,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(200,255,61,.
 .day-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
 .learn-link { flex: none; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; border: 1px solid #cad7ce; color: var(--green); background: rgba(255,255,255,.55); border-radius: 12px; padding: 0 15px; text-decoration: none; font-size: 12px; font-weight: 800; }
 .learn-link:hover { background: white; }
+.learn-link.active { background: var(--green); color: #10130f; border-color: var(--green); }
 .day-tabs button { --accent: var(--day-a); border: 1px solid var(--line); background: rgba(255,255,255,.5); border-radius: 15px; min-height: 75px; text-align: left; padding: 14px 18px; cursor: pointer; box-shadow: inset 0 0 var(--accent); }
 .day-tabs button.active { background: var(--surface); box-shadow: inset 4px 0 var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
 .day-tabs span, .day-tabs small { display: block; }
@@ -106,6 +108,19 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(200,255,61,.
 .exercise-target { text-align: right; }
 .exercise-detail { grid-column: 2 / -1; padding: 6px 12px 18px; font-size: 13px; color: var(--muted); }
 .exercise-detail p { margin: 7px 0; }
+.plan-editor-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 0 0 14px; padding: 13px 15px; border: 1px solid #435330; border-radius: 11px; background: var(--soft-green); color: var(--green); }
+.plan-editor-toolbar p { display: flex; align-items: center; gap: 9px; margin: 0; font-size: 12px; }
+.plan-editor-toolbar button { flex: none; display: inline-flex; align-items: center; gap: 7px; border: 0; background: transparent; color: inherit; font-weight: 800; cursor: pointer; }
+.exercise-row.editing { background: color-mix(in srgb, var(--soft-green) 35%, var(--surface)); }
+.plan-editor-actions { grid-column: 2 / -1; display: flex; align-items: center; gap: 7px; padding: 3px 0 11px; }
+.plan-editor-actions button { min-width: 36px; min-height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--line); border-radius: 8px; background: #121412; color: var(--muted); cursor: pointer; }
+.plan-editor-actions button:hover:not(:disabled) { border-color: #647d3f; color: var(--green); }
+.plan-editor-actions button:disabled { opacity: .3; cursor: not-allowed; }
+.plan-editor-actions .editor-action-wide { padding: 0 12px; color: var(--green); font-size: 11px; font-weight: 800; }
+.plan-editor-actions .editor-remove { margin-left: auto; color: #d68c7d; }
+.configured-pill { display: inline-flex !important; width: fit-content; margin: 0 0 0 6px !important; padding: 3px 6px; border-radius: 5px; background: var(--soft-green); color: var(--green) !important; font: 800 8px/1 sans-serif !important; text-transform: uppercase; letter-spacing: .06em; vertical-align: 2px; }
+.add-exercise-button { width: 100%; min-height: 58px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-top: 1px dashed #44513a; background: #141714; color: var(--green); font-weight: 800; cursor: pointer; }
+.add-exercise-button:hover { background: var(--soft-green); }
 
 .workout-shell { min-height: 100vh; background: #f8f5ee; padding-bottom: 95px; }
 .workout-header { height: 72px; padding: 0 max(24px, calc((100vw - 1080px)/2)); background: var(--green-dark); color: #fff; display: grid; grid-template-columns: 70px 1fr 120px; align-items: center; text-align: center; }
@@ -175,6 +190,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(200,255,61,.
 .alternative-list button { border: 1px solid var(--line); background: white; border-radius: 13px; padding: 14px; text-align: left; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
 .alternative-list strong, .alternative-list small { display: block; }
 .alternative-list small { color: var(--muted); margin-top: 4px; font-size: 10px; }
+.master-alternatives button.selected { border-color: var(--green); background: var(--soft-green); color: var(--ink); }
 .exercise-picker { width: min(640px, 100%); }
 .exercise-picker header p { color: var(--muted); font-size: 12px; margin: 7px 0 0; }
 .exercise-queue { display: grid; gap: 7px; }
@@ -190,6 +206,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(200,255,61,.
 .queue-copy small { color: var(--muted); margin-top: 4px; font-size: 10px; }
 .queue-muscles { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 7px; color: var(--muted); font-size: 10px; margin-top: 5px; }
 .queue-action { color: var(--green); display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 800; }
+.add-slot-list > button { grid-template-columns: 1fr auto; }
+.modal > .empty-state { min-height: 220px; }
 
 .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
 .stat-row > div { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
@@ -505,6 +523,9 @@ h1, h2, h3, .brand strong { font-family: "Arial Narrow", "Helvetica Neue", Arial
   .page-header h1 { font-size: 36px; }
   .page-header .offline-pill { display: none; }
   .page-header .learn-link { width: 100%; min-height: 42px; justify-content: center; }
+  .page-header { display: block; }
+  .page-header-actions { margin-top: 17px; display: grid; grid-template-columns: 1fr 1fr; }
+  .page-header-actions .learn-link { width: auto; padding: 0 9px; }
   .hero-card { min-height: 0; border-radius: 22px; }
   .hero-copy { padding: 30px 24px; }
   .hero-copy h2 { font-size: 40px; }
@@ -525,6 +546,11 @@ h1, h2, h3, .brand strong { font-family: "Arial Narrow", "Helvetica Neue", Arial
   .exercise-main .movement-chip { padding: 2px 5px; font-size: 8px; }
   .exercise-main .exercise-target strong { font-size: 11px; }
   .exercise-detail { grid-column: 1 / -1; padding: 8px 10px 15px; }
+  .plan-editor-toolbar { align-items: flex-start; }
+  .plan-editor-toolbar p { align-items: flex-start; }
+  .plan-editor-toolbar button { font-size: 0; }
+  .plan-editor-actions { grid-column: 1 / -1; padding-left: 4px; }
+  .plan-editor-actions .editor-action-wide { padding: 0 9px; font-size: 10px; }
   .workout-header { padding: 0 12px; grid-template-columns: 98px 1fr 84px; }
   .workout-header-tools { gap: 4px; }
   .workout-header-tools .icon-button { width: 38px; height: 38px; }

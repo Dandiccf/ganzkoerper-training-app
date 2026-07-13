@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  ArrowDown,
+  ArrowUp,
   BarChart3,
   Check,
   ChevronRight,
@@ -12,7 +14,9 @@ import {
   ListChecks,
   MoreHorizontal,
   Pause,
+  Pencil,
   Play,
+  Plus,
   RefreshCw,
   Settings2,
   SkipForward,
@@ -33,7 +37,7 @@ import {
   type SessionExercise,
   type WorkoutSession,
 } from "@/src/lib/domain";
-import { deleteAllData, loadSessions, saveSession } from "@/src/lib/db";
+import { deleteAllData, loadPlanConfiguration, loadSessions, savePlanConfiguration, saveSession } from "@/src/lib/db";
 import {
   LanguageSwitcher,
   localizeCue,
@@ -47,6 +51,20 @@ import {
   type Locale,
 } from "@/src/lib/i18n";
 import { alternativesFor, imageUrl, movementMeta, movementPatternForExercise, trainingPlan, type DayCode } from "@/src/lib/schema";
+import {
+  addPlanSlot,
+  availableBaseExercises,
+  defaultPlanConfiguration,
+  isCustomizedDay,
+  movePlanSlot,
+  removePlanSlot,
+  replacePlanSlotExercise,
+  resetPlanDay,
+  resolvePlanDay,
+  resolvePlanDays,
+  type ConfiguredTrainingDay,
+  type PlanConfiguration,
+} from "@/src/lib/plan";
 
 type View = "today" | "plan" | "history" | "more";
 
@@ -72,19 +90,23 @@ export function TrainingApp() {
   const { locale, t } = useI18n();
   const [view, setView] = useState<View>("today");
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
+  const [planConfiguration, setPlanConfiguration] = useState<PlanConfiguration>(defaultPlanConfiguration);
   const [ready, setReady] = useState(false);
   const [planDay, setPlanDay] = useState<DayCode>("A");
 
   const refresh = useCallback(async () => {
-    setSessions(await loadSessions());
+    const [storedSessions, storedPlan] = await Promise.all([loadSessions(), loadPlanConfiguration()]);
+    setSessions(storedSessions);
+    setPlanConfiguration(storedPlan);
     setReady(true);
   }, []);
 
   useEffect(() => {
     let mounted = true;
-    void loadSessions().then((items) => {
+    void Promise.all([loadSessions(), loadPlanConfiguration()]).then(([items, storedPlan]) => {
       if (mounted) {
         setSessions(items);
+        setPlanConfiguration(storedPlan);
         setReady(true);
       }
     });
@@ -100,14 +122,20 @@ export function TrainingApp() {
 
   const active = sessions.find((session) => session.status === "active");
   const nextCode = nextDayCode(sessions);
-  const nextDay = trainingPlan.days.find((day) => day.code === nextCode)!;
+  const configuredDays = useMemo(() => resolvePlanDays(planConfiguration), [planConfiguration]);
+  const nextDay = configuredDays.find((day) => day.code === nextCode)!;
   const completed = sessions.filter((session) => session.status === "completed");
 
   async function startTraining(code: DayCode) {
-    const day = trainingPlan.days.find((item) => item.code === code)!;
+    const day = configuredDays.find((item) => item.code === code)!;
     const session = createSession(day);
     await saveSession(session);
     await refresh();
+  }
+
+  async function updatePlan(next: PlanConfiguration) {
+    await savePlanConfiguration(next);
+    setPlanConfiguration(next);
   }
 
   if (!ready) {
@@ -136,9 +164,9 @@ export function TrainingApp() {
             onStart={startTraining}
           />
         )}
-        {view === "plan" && <PlanView selected={planDay} onSelect={setPlanDay} />}
+        {view === "plan" && <PlanView selected={planDay} onSelect={setPlanDay} configuration={planConfiguration} onChange={updatePlan} />}
         {view === "history" && <HistoryView sessions={completed} />}
-        {view === "more" && <MoreView sessions={sessions} onChange={refresh} />}
+        {view === "more" && <MoreView sessions={sessions} planConfiguration={planConfiguration} onChange={refresh} />}
       </main>
 
       <nav className="mobile-nav" aria-label={t("nav.aria")}>
@@ -182,7 +210,7 @@ function TodayView({
   completed,
   onStart,
 }: {
-  nextDay: (typeof trainingPlan.days)[number];
+  nextDay: ConfiguredTrainingDay;
   sessions: WorkoutSession[];
   completed: WorkoutSession[];
   onStart: (code: DayCode) => void;
@@ -214,7 +242,7 @@ function TodayView({
           <p>{localizedNextDay.focus}</p>
           <div className="hero-meta">
             <span><Clock3 size={17} /> {trainingPlan.estimatedDurationMinutes.min}–{trainingPlan.estimatedDurationMinutes.max} Min.</span>
-            <span><Dumbbell size={17} /> {nextDay.exercises.length} {t("common.exercises")} · 18 {t("common.sets")}</span>
+            <span><Dumbbell size={17} /> {nextDay.exercises.length} {t("common.exercises")} · {nextDay.exercises.reduce((sum, exercise) => sum + exercise.sets, 0)} {t("common.sets")}</span>
           </div>
           <button className="primary-button" onClick={() => onStart(nextDay.code)}><Play size={19} fill="currentColor" /> {t("today.start")}</button>
         </div>
@@ -249,35 +277,71 @@ function TodayView({
   );
 }
 
-function PlanView({ selected, onSelect }: { selected: DayCode; onSelect: (code: DayCode) => void }) {
+function PlanView({
+  selected,
+  onSelect,
+  configuration,
+  onChange,
+}: {
+  selected: DayCode;
+  onSelect: (code: DayCode) => void;
+  configuration: PlanConfiguration;
+  onChange: (next: PlanConfiguration) => Promise<void>;
+}) {
   const { locale, t } = useI18n();
-  const day = trainingPlan.days.find((item) => item.code === selected)!;
+  const day = resolvePlanDay(configuration, selected);
   const localizedDay = localizeDay(day.code, day, locale);
   const [openExercise, setOpenExercise] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [alternativeSlot, setAlternativeSlot] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const slots = configuration.days[selected];
+  const selectedSlot = slots.find((slot) => slot.id === alternativeSlot);
+  const baseExercises = trainingPlan.days.flatMap((item) => item.exercises);
+  const baseExercise = selectedSlot ? baseExercises.find((exercise) => exercise.id === selectedSlot.baseExerciseId) : undefined;
+  const addable = availableBaseExercises(configuration, selected);
+
+  async function commit(next: PlanConfiguration) {
+    await onChange(next);
+  }
+
+  async function resetDay() {
+    if (!window.confirm(t("plan.confirmReset"))) return;
+    await commit(resetPlanDay(configuration, selected));
+  }
+
   return (
     <div className="page">
-      <header className="page-header"><div><span className="eyebrow">{t("plan.eyebrow")}</span><h1>{t("plan.title")}</h1><p>{t("plan.subtitle")}</p></div><Link href="/grundidee" className="learn-link"><Sparkles size={17} /> {t("plan.learn")}</Link></header>
+      <header className="page-header"><div><span className="eyebrow">{t("plan.eyebrow")}</span><h1>{t("plan.title")}</h1><p>{t("plan.subtitle")}</p></div><div className="page-header-actions"><Link href="/grundidee" className="learn-link"><Sparkles size={17} /> {t("plan.learn")}</Link><button className={`learn-link ${editing ? "active" : ""}`} onClick={() => setEditing((value) => !value)}><Pencil size={17} /> {editing ? t("plan.doneEditing") : t("plan.edit")}</button></div></header>
       <div className="day-tabs">
         {trainingPlan.days.map((item) => <button key={item.code} className={selected === item.code ? "active" : ""} onClick={() => onSelect(item.code)} style={{ "--accent": dayColor[item.code] } as React.CSSProperties}><span>{t("common.day")} {item.code}</span><small>{localizeDay(item.code, item, locale).name}</small></button>)}
       </div>
+      {editing && <div className="plan-editor-toolbar"><p><Pencil size={17} /> {t("plan.editorHint")}</p>{isCustomizedDay(configuration, selected) && <button onClick={resetDay}><RefreshCw size={16} /> {t("plan.resetDay")}</button>}</div>}
       <section className="plan-header" style={{ "--accent": dayColor[selected] } as React.CSSProperties}><span className="day-badge">{t("common.day").toUpperCase()} {selected}</span><div><h2>{localizedDay.name}</h2><p>{localizedDay.focus}</p></div><strong>{day.exercises.length} {t("common.exercises")}</strong></section>
       <div className="exercise-list">
-        {day.exercises.map((exercise) => {
+        {day.exercises.map((exercise, index) => {
+          const slot = slots[index];
           const movement = localizeMovement(exercise.movementPattern, movementMeta(exercise.movementPattern), locale);
           const name = localizeExerciseName(exercise.id, exercise.name, locale);
-          return <article className="exercise-row" key={exercise.id}>
+          return <article className={`exercise-row ${editing ? "editing" : ""}`} key={slot?.id ?? exercise.id}>
             <span className="exercise-number">{exercise.order}</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={imageUrl(exercise.image)} alt="" />
-            <button className="exercise-main" onClick={() => setOpenExercise(openExercise === exercise.id ? null : exercise.id)}>
-              <span><strong>{name}</strong><small className="exercise-meta-line">{localizeMuscles(exercise.primaryMuscles, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></small></span>
+            <button className="exercise-main" onClick={() => setOpenExercise(openExercise === (slot?.id ?? exercise.id) ? null : (slot?.id ?? exercise.id))}>
+              <span><strong>{name} {slot && slot.exerciseId !== slot.baseExerciseId && <small className="configured-pill">{t("plan.configured")}</small>}</strong><small className="exercise-meta-line">{localizeMuscles(exercise.primaryMuscles, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></small></span>
               <span className="exercise-target"><strong>{exercise.sets} × {exercise.repRange.min}–{exercise.repRange.max}</strong><small>{exercise.restSeconds}s {t("common.rest")}</small></span>
               <ChevronRight size={19} />
             </button>
-            {openExercise === exercise.id && <div className="exercise-detail"><p><strong>{t("plan.pattern")}</strong> {movement.label} · {movement.category}</p><p><strong>{t("plan.technique")}</strong> {localizeCue(exercise.id, exercise.techniqueCue, locale)}</p><p><strong>{t("plan.equipment")}</strong> {localizeEquipment(exercise.equipment, locale).join(", ")}</p><p><strong>{t("plan.alternatives")}</strong> {alternativesFor(exercise.id).map((item) => localizeExerciseName(item.id, item.name, locale)).join(", ")}</p></div>}
+            {editing && slot && <div className="plan-editor-actions"><button aria-label={t("plan.moveUp")} title={t("plan.moveUp")} disabled={index === 0} onClick={() => void commit(movePlanSlot(configuration, selected, slot.id, -1))}><ArrowUp size={17} /></button><button aria-label={t("plan.moveDown")} title={t("plan.moveDown")} disabled={index === slots.length - 1} onClick={() => void commit(movePlanSlot(configuration, selected, slot.id, 1))}><ArrowDown size={17} /></button><button className="editor-action-wide" onClick={() => setAlternativeSlot(slot.id)}><RefreshCw size={16} /> {t("plan.changePermanent")}</button><button className="editor-remove" aria-label={t("plan.remove")} title={t("plan.remove")} disabled={slots.length <= 1} onClick={() => void commit(removePlanSlot(configuration, selected, slot.id))}><Trash2 size={17} /></button></div>}
+            {openExercise === (slot?.id ?? exercise.id) && <div className="exercise-detail"><p><strong>{t("plan.pattern")}</strong> {movement.label} · {movement.category}</p><p><strong>{t("plan.technique")}</strong> {localizeCue(exercise.baseExerciseId, exercise.techniqueCue, locale)}</p><p><strong>{t("plan.equipment")}</strong> {localizeEquipment(exercise.equipment, locale).join(", ")}</p><p><strong>{t("plan.alternatives")}</strong> {alternativesFor(exercise.baseExerciseId).map((item) => localizeExerciseName(item.id, item.name, locale)).join(", ")}</p></div>}
           </article>
         })}
+        {editing && <button className="add-exercise-button" onClick={() => setShowAdd(true)}><Plus size={19} /> {t("plan.addExercise")}</button>}
       </div>
+
+      {selectedSlot && baseExercise && <div className="modal-backdrop" onClick={() => setAlternativeSlot(null)}><section className="modal" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("plan.chooseAlternative")}</span><h2>{localizeMuscles(baseExercise.primaryMuscles, locale).join(" · ")}</h2><p>{t("plan.alternativeHelp")}</p></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setAlternativeSlot(null)}><X /></button></header><div className="alternative-list master-alternatives">{[baseExercise, ...alternativesFor(baseExercise.id)].map((item) => { const movement = localizeMovement(item.movementPattern, movementMeta(item.movementPattern), locale); const active = selectedSlot.exerciseId === item.id; return <button key={item.id} className={active ? "selected" : ""} onClick={async () => { await commit(replacePlanSlotExercise(configuration, selected, selectedSlot.id, item.id)); setAlternativeSlot(null); }}><span><strong>{localizeExerciseName(item.id, item.name, locale)} {item.id === baseExercise.id && <small className="configured-pill">{t("plan.baseExercise")}</small>}</strong><small className="exercise-meta-line">{localizeEquipment(item.equipment, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></small></span>{active ? <Check /> : <ChevronRight />}</button>; })}</div></section></div>}
+
+      {showAdd && <div className="modal-backdrop" onClick={() => setShowAdd(false)}><section className="modal exercise-picker" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("plan.addExercise")}</span><h2>{t("plan.addTitle")}</h2><p>{t("plan.addHelp")}</p></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setShowAdd(false)}><X /></button></header>{addable.length ? <div className="exercise-queue add-slot-list">{addable.map((exercise) => { const movement = localizeMovement(exercise.movementPattern, movementMeta(exercise.movementPattern), locale); return <button key={exercise.id} onClick={async () => { await commit(addPlanSlot(configuration, selected, exercise.id, crypto.randomUUID())); setShowAdd(false); }}><span className="queue-copy"><strong>{localizeExerciseName(exercise.id, exercise.name, locale)}</strong><span className="queue-muscles">{localizeMuscles(exercise.primaryMuscles, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category} · {movement.label}</span></span><small>{exercise.sets} × {exercise.repRange.min}–{exercise.repRange.max} · {localizeEquipment(exercise.equipment, locale).join(" · ")}</small></span><span className="queue-action"><Plus size={17} /></span></button>; })}</div> : <div className="empty-state"><Check size={32} /><p>{t("plan.noExercisesAvailable")}</p></div>}</section></div>}
     </div>
   );
 }
@@ -469,7 +533,7 @@ function HistoryView({ sessions }: { sessions: WorkoutSession[] }) {
   );
 }
 
-function MoreView({ sessions, onChange }: { sessions: WorkoutSession[]; onChange: () => Promise<void> }) {
+function MoreView({ sessions, planConfiguration, onChange }: { sessions: WorkoutSession[]; planConfiguration: PlanConfiguration; onChange: () => Promise<void> }) {
   const { t } = useI18n();
   const [unit, setUnit] = useState("kg");
   const completedCount = useMemo(() => sessions.filter((session) => session.status === "completed").length, [sessions]);
@@ -499,7 +563,7 @@ function MoreView({ sessions, onChange }: { sessions: WorkoutSession[]; onChange
     <div className="page settings-page">
       <header className="page-header"><div><span className="eyebrow">{t("settings.eyebrow")}</span><h1>{t("settings.title")}</h1><p>{t("settings.subtitle")}</p></div></header>
       <section className="settings-section"><h2>{t("settings.training")}</h2><div className="setting-row language-setting"><span><strong>{t("language.label")}</strong><small>{t("language.auto")}, DE, EN</small></span><LanguageSwitcher /></div><div className="setting-row"><span><strong>{t("settings.units")}</strong><small>{t("settings.unitsHelp")}</small></span><div className="segmented"><button className={unit === "kg" ? "active" : ""} onClick={() => setUnit("kg")}>kg</button><button className={unit === "lb" ? "active" : ""} onClick={() => setUnit("lb")}>lb</button></div></div><div className="setting-row"><span><strong>{t("settings.timer")}</strong><small>{t("settings.timerHelp")}</small></span><span>75–180 s</span></div></section>
-      <section className="settings-section"><h2>{t("settings.data")}</h2><div className="data-card"><div><strong>{completedCount} {t("settings.saved")}</strong><small>{t("settings.deviceOnly")}</small></div><span className="offline-pill"><span /> {t("settings.safe")}</span></div><div className="button-row"><button onClick={() => download("kraftwerk-training.json", "application/json", JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), sessions }, null, 2))}>{t("settings.exportJson")}</button><button onClick={exportCsv}>{t("settings.exportCsv")}</button></div><button className="danger-button" onClick={clearData}><Trash2 size={17} /> {t("settings.delete")}</button></section>
+      <section className="settings-section"><h2>{t("settings.data")}</h2><div className="data-card"><div><strong>{completedCount} {t("settings.saved")}</strong><small>{t("settings.deviceOnly")}</small></div><span className="offline-pill"><span /> {t("settings.safe")}</span></div><div className="button-row"><button onClick={() => download("kraftwerk-training.json", "application/json", JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), sessions, planConfiguration }, null, 2))}>{t("settings.exportJson")}</button><button onClick={exportCsv}>{t("settings.exportCsv")}</button></div><button className="danger-button" onClick={clearData}><Trash2 size={17} /> {t("settings.delete")}</button></section>
       <section className="settings-section about"><h2>{t("settings.about")}</h2><p>Version 0.1.0 · Local-first PWA</p><p>{t("settings.disclaimer")}</p></section>
     </div>
   );

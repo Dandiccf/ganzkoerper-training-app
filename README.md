@@ -27,6 +27,8 @@ npm run check
 - Automatische Browser-Spracherkennung mit dauerhaft auswählbarem Deutsch/Englisch-Modus.
 - Heute-Ansicht mit automatischer A/B/C-Rotation.
 - Vollständiger Planbrowser für alle 27 Übungen.
+- Persistenter Masterplan-Editor: Übungen je A/B/C-Tag sortieren, entfernen und ergänzen.
+- Dauerhafte Übungsalternativen je Muskel-/Bewegungsslot mit unveränderter Satz- und Wiederholungsvorgabe.
 - Aktiver Trainingsmodus mit Last, Wiederholungen und RIR.
 - Freie Übungsreihenfolge innerhalb einer Session, etwa bei belegten Geräten.
 - Flexible Satzanzahl pro Übung und Sitzung inklusive spontaner Zusatzsätze.
@@ -44,7 +46,7 @@ npm run check
 - Für alle 27 Planübungen sind kuratierte, auswählbare Alternativen hinterlegt.
 - Produkt-, Technik- und Umsetzungsplanung sind dokumentiert.
 
-Noch nicht umgesetzt sind die laut Roadmap optionalen beziehungsweise späteren Phasen Cloud-Sync, Konto, Planeditor und Apple-Watch-App.
+Noch nicht umgesetzt sind die laut Roadmap optionalen beziehungsweise späteren Phasen Cloud-Sync, Konto und Apple-Watch-App.
 
 ## Projektstruktur
 
@@ -92,7 +94,7 @@ ganzkoerper-training-app/
 - Next.js 16 mit App Router
 - React 19 und TypeScript im Strict Mode
 - Zod zur Laufzeitvalidierung der Seed-Daten
-- Dexie und IndexedDB für lokale Sessions
+- Dexie und IndexedDB für lokale Sessions und die persönliche Plan-Konfiguration
 - Vitest für Domänenlogik
 - ESLint und Production-Build als Qualitätsbarrieren
 
