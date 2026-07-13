@@ -14,6 +14,7 @@ export type SessionExercise = {
   exerciseId: string;
   originalExerciseId?: string;
   name: string;
+  movementPattern?: string;
   position: number;
   targetSets: number;
   repMin: number;
@@ -68,6 +69,7 @@ function snapshotExercise(exercise: PlanExercise, index: number, sessionId: stri
     id: `${sessionId}-${exercise.id}`,
     exerciseId: exercise.id,
     name: exercise.name,
+    movementPattern: exercise.movementPattern,
     position: index + 1,
     targetSets: exercise.sets,
     repMin: exercise.repRange.min,

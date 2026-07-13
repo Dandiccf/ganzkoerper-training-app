@@ -95,6 +95,13 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(84, 142, 125
 .exercise-main { min-width: 0; display: grid; grid-template-columns: 1fr 150px 24px; align-items: center; gap: 12px; border: 0; background: none; min-height: 68px; cursor: pointer; text-align: left; }
 .exercise-main span > strong, .exercise-main span > small { display: block; }
 .exercise-main span > small { color: var(--muted); font-size: 11px; margin-top: 4px; }
+.exercise-meta-line { display: flex !important; align-items: center; flex-wrap: wrap; gap: 5px 8px; }
+.movement-chip { display: inline-flex; align-items: center; width: fit-content; border-radius: 99px; padding: 3px 7px; font-style: normal; font-size: 9px; font-weight: 800; line-height: 1; letter-spacing: .02em; background: #e8e8e3; color: #606661; }
+.movement-chip.push { background: #f6dfd6; color: #85472f; }
+.movement-chip.pull { background: #dce9ee; color: #326474; }
+.movement-chip.legs { background: #eee5c9; color: #765f1d; }
+.movement-chip.core { background: #dfe8df; color: #3e6a50; }
+.movement-chip.isolation { background: #e8e1ed; color: #665075; }
 .exercise-target { text-align: right; }
 .exercise-detail { grid-column: 2 / -1; padding: 6px 12px 18px; font-size: 13px; color: var(--muted); }
 .exercise-detail p { margin: 7px 0; }
@@ -116,6 +123,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(84, 142, 125
 .workout-image-wrap img { width: 100%; height: 100%; object-fit: cover; }
 .workout-image-wrap > span { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--green-dark); color: white; border-radius: 99px; padding: 7px 12px; font-size: 10px; letter-spacing: .1em; white-space: nowrap; }
 .workout-exercise h1 { font: 500 clamp(30px, 4vw, 43px)/1 Georgia, serif; margin: 10px 0 14px; }
+.active-exercise-meta { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 7px; color: var(--green); text-transform: uppercase; font-size: 10px; font-weight: 800; letter-spacing: .1em; }
+.active-exercise-meta .movement-chip { text-transform: none; letter-spacing: .02em; }
 .cue { color: var(--muted); font-size: 13px; max-width: 370px; line-height: 1.55; margin: 0 auto 14px; }
 .text-button { border: 0; background: none; color: var(--green); display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 12px; cursor: pointer; }
 .workout-secondary-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 5px 12px; }
@@ -160,7 +169,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(84, 142, 125
 .exercise-picker { width: min(640px, 100%); }
 .exercise-picker header p { color: var(--muted); font-size: 12px; margin: 7px 0 0; }
 .exercise-queue { display: grid; gap: 7px; }
-.exercise-queue > button { width: 100%; min-height: 64px; display: grid; grid-template-columns: 38px 1fr auto; gap: 11px; align-items: center; text-align: left; border: 1px solid var(--line); background: white; border-radius: 13px; padding: 9px 13px; cursor: pointer; }
+.exercise-queue > button { width: 100%; min-height: 76px; display: grid; grid-template-columns: 38px 1fr auto; gap: 11px; align-items: center; text-align: left; border: 1px solid var(--line); background: white; border-radius: 13px; padding: 9px 13px; cursor: pointer; }
 .exercise-queue > button:not(:disabled):hover { border-color: var(--green); background: #fbfcf8; }
 .exercise-queue > button.current { border-color: #9db8a7; background: var(--soft-green); }
 .exercise-queue > button.done { opacity: .58; background: #f0eee8; }
@@ -169,6 +178,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(84, 142, 125
 .done .queue-number { background: #789887; color: white; }
 .queue-copy strong, .queue-copy small { display: block; }
 .queue-copy small { color: var(--muted); margin-top: 4px; font-size: 10px; }
+.queue-muscles { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 7px; color: var(--muted); font-size: 10px; margin-top: 5px; }
 .queue-action { color: var(--green); display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 800; }
 
 .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
@@ -191,6 +201,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(84, 142, 125
 .session-detail > div { border-top: 1px solid var(--line); padding: 13px 0; display: grid; gap: 4px; }
 .session-detail > div span, .session-detail > div small { font-size: 11px; color: var(--muted); }
 .session-detail > div small { color: var(--green); }
+.session-detail .history-exercise-meta { display: flex; align-items: center; gap: 7px; margin: 2px 0; }
 
 .settings-page { max-width: 900px; }
 .settings-section { margin: 0 0 28px; }
@@ -358,6 +369,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(84, 142, 125
   .exercise-row > img { width: 44px; height: 44px; }
   .exercise-main { grid-template-columns: 1fr 95px 16px; gap: 5px; }
   .exercise-main > span:first-child strong { font-size: 12px; }
+  .exercise-main .movement-chip { padding: 2px 5px; font-size: 8px; }
   .exercise-main .exercise-target strong { font-size: 11px; }
   .exercise-detail { grid-column: 1 / -1; padding: 8px 10px 15px; }
   .workout-header { padding: 0 12px; grid-template-columns: 50px 1fr 84px; }
@@ -377,6 +389,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(84, 142, 125
   .workout-secondary-actions { display: grid; justify-items: center; }
   .exercise-picker { padding: 20px 14px; max-height: 90vh; }
   .exercise-queue > button { grid-template-columns: 34px 1fr auto; padding: 8px 9px; }
+  .queue-muscles .movement-chip { max-width: 170px; white-space: normal; line-height: 1.2; }
   .queue-action { font-size: 0; }
   .stat-row { gap: 7px; }
   .stat-row > div { padding: 14px 10px; }

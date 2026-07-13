@@ -1,6 +1,6 @@
 import { z } from "zod";
-import rawPlan from "@/data/training-plan.v1.json";
-import rawAlternatives from "@/data/exercise-alternatives.v1.json";
+import rawPlan from "../../data/training-plan.v1.json";
+import rawAlternatives from "../../data/exercise-alternatives.v1.json";
 
 const rangeSchema = z.object({ min: z.number(), max: z.number() });
 
@@ -93,4 +93,31 @@ export function alternativesFor(exerciseId: string) {
       ? [{ id: planItem.id, name: planItem.name, movementPattern: planItem.movementPattern, equipment: planItem.equipment, tags: ["Planübung"] }]
       : [];
   });
+}
+
+const movementMetadata: Record<string, { category: string; label: string; tone: string }> = {
+  horizontal_press: { category: "Push", label: "Horizontaler Druck", tone: "push" },
+  vertical_press: { category: "Push", label: "Vertikaler Druck", tone: "push" },
+  elbow_extension: { category: "Push", label: "Trizeps-Isolation", tone: "push" },
+  horizontal_pull: { category: "Pull", label: "Horizontales Ziehen", tone: "pull" },
+  vertical_pull: { category: "Pull", label: "Vertikales Ziehen", tone: "pull" },
+  elbow_flexion: { category: "Pull", label: "Bizeps-Isolation", tone: "pull" },
+  knee_dominant: { category: "Beine", label: "Kniedominant", tone: "legs" },
+  knee_dominant_unilateral: { category: "Beine", label: "Einbeinig kniedominant", tone: "legs" },
+  hip_hinge: { category: "Beine", label: "Hüftstreckung", tone: "legs" },
+  hip_extension: { category: "Beine", label: "Hüftstreckung", tone: "legs" },
+  knee_flexion: { category: "Beine", label: "Beinbeuger-Isolation", tone: "legs" },
+  plantar_flexion: { category: "Beine", label: "Waden-Isolation", tone: "legs" },
+  shoulder_abduction: { category: "Isolation", label: "Schulter-Abduktion", tone: "isolation" },
+  core_flexion: { category: "Core", label: "Rumpfbeugung", tone: "core" },
+  anti_extension: { category: "Core", label: "Anti-Extension", tone: "core" },
+};
+
+export function movementMeta(pattern?: string) {
+  return movementMetadata[pattern ?? ""] ?? { category: "Sonstige", label: "Ergänzende Bewegung", tone: "other" };
+}
+
+export function movementPatternForExercise(exerciseId: string) {
+  return trainingPlan.days.flatMap((day) => day.exercises).find((exercise) => exercise.id === exerciseId)?.movementPattern
+    ?? alternativeData.catalog.find((exercise) => exercise.id === exerciseId)?.movementPattern;
 }

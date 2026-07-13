@@ -29,10 +29,11 @@ import {
   nextDayCode,
   recommendation,
   replaceSessionExercise,
+  type SessionExercise,
   type WorkoutSession,
 } from "@/src/lib/domain";
 import { deleteAllData, loadSessions, saveSession } from "@/src/lib/db";
-import { alternativesFor, imageUrl, trainingPlan, type DayCode } from "@/src/lib/schema";
+import { alternativesFor, imageUrl, movementMeta, movementPatternForExercise, trainingPlan, type DayCode } from "@/src/lib/schema";
 
 type View = "today" | "plan" | "history" | "more";
 
@@ -47,6 +48,10 @@ function formatDuration(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   const rest = seconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+}
+
+function sessionMovement(exercise: SessionExercise) {
+  return movementMeta(exercise.movementPattern ?? movementPatternForExercise(exercise.exerciseId));
 }
 
 export function TrainingApp() {
@@ -229,19 +234,20 @@ function PlanView({ selected, onSelect }: { selected: DayCode; onSelect: (code: 
       </div>
       <section className="plan-header" style={{ "--accent": dayColor[selected] } as React.CSSProperties}><span className="day-badge">TAG {selected}</span><div><h2>{day.name}</h2><p>{day.focus}</p></div><strong>{day.exercises.length} Übungen</strong></section>
       <div className="exercise-list">
-        {day.exercises.map((exercise) => (
-          <article className="exercise-row" key={exercise.id}>
+        {day.exercises.map((exercise) => {
+          const movement = movementMeta(exercise.movementPattern);
+          return <article className="exercise-row" key={exercise.id}>
             <span className="exercise-number">{exercise.order}</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={imageUrl(exercise.image)} alt="" />
             <button className="exercise-main" onClick={() => setOpenExercise(openExercise === exercise.id ? null : exercise.id)}>
-              <span><strong>{exercise.name}</strong><small>{exercise.primaryMuscles.join(" · ")}</small></span>
+              <span><strong>{exercise.name}</strong><small className="exercise-meta-line">{exercise.primaryMuscles.join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></small></span>
               <span className="exercise-target"><strong>{exercise.sets} × {exercise.repRange.min}–{exercise.repRange.max}</strong><small>{exercise.restSeconds}s Pause</small></span>
               <ChevronRight size={19} />
             </button>
-            {openExercise === exercise.id && <div className="exercise-detail"><p><strong>Technik:</strong> {exercise.techniqueCue}</p><p><strong>Equipment:</strong> {exercise.equipment.join(", ")}</p><p><strong>Alternativen:</strong> {alternativesFor(exercise.id).map((item) => item.name).join(", ")}</p></div>}
+            {openExercise === exercise.id && <div className="exercise-detail"><p><strong>Bewegungsmuster:</strong> {movement.label} · {movement.category}</p><p><strong>Technik:</strong> {exercise.techniqueCue}</p><p><strong>Equipment:</strong> {exercise.equipment.join(", ")}</p><p><strong>Alternativen:</strong> {alternativesFor(exercise.id).map((item) => item.name).join(", ")}</p></div>}
           </article>
-        ))}
+        })}
       </div>
     </div>
   );
@@ -272,6 +278,7 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
 
   const completedSets = session.exercises.reduce((sum, item) => sum + item.sets.length, 0);
   const totalSets = session.exercises.reduce((sum, item) => sum + item.targetSets, 0);
+  const currentMovement = sessionMovement(exercise);
   const previous = sessions
     .filter((item) => item.status === "completed")
     .flatMap((item) => item.exercises)
@@ -323,7 +330,10 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
 
   async function replace(id: string, name: string) {
     const next = structuredClone(session);
-    next.exercises[currentIndex] = replaceSessionExercise(next.exercises[currentIndex], { id, name });
+    next.exercises[currentIndex] = {
+      ...replaceSessionExercise(next.exercises[currentIndex], { id, name }),
+      movementPattern: movementPatternForExercise(id),
+    };
     setLoad(0);
     setReps(next.exercises[currentIndex].repMin);
     setRir(2);
@@ -360,7 +370,7 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
             <img src={imageUrl(exercise.image)} alt={`Muskelgrafik für ${exercise.name}`} />
             <span>SATZ {Math.min(exercise.sets.length + 1, exercise.targetSets)} / {exercise.targetSets}</span>
           </div>
-          <span className="eyebrow">{exercise.primaryMuscles.join(" · ")}</span>
+          <div className="active-exercise-meta"><span>{exercise.primaryMuscles.join(" · ")}</span><span className={`movement-chip ${currentMovement.tone}`}>{currentMovement.category} · {currentMovement.label}</span></div>
           <h1>{exercise.name}</h1>
           <p className="cue">{exercise.techniqueCue}</p>
           <div className="workout-secondary-actions"><button className="text-button" onClick={() => setShowExercisePicker(true)}><ListChecks size={16} /> Andere Übung wählen</button><button className="text-button" onClick={() => setShowAlternatives(true)}><RefreshCw size={16} /> Übung ersetzen</button></div>
@@ -382,9 +392,9 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
 
       {timerEnd && <div className="timer-bar"><TimerReset size={22} /><div><span>Pause</span><strong>{formatDuration(remaining)}</strong></div><button onClick={() => setTimerEnd((value) => (value ?? Date.now()) + 15_000)}>+15s</button><button onClick={() => setTimerEnd(null)}>Überspringen</button></div>}
 
-      {showAlternatives && <div className="modal-backdrop" onClick={() => setShowAlternatives(false)}><section className="modal" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">Nur für heute</span><h2>Übung ersetzen</h2></div><button className="icon-button" onClick={() => setShowAlternatives(false)}><X /></button></header><div className="alternative-list">{alternativesFor(exercise.originalExerciseId ?? exercise.exerciseId).map((item) => <button key={item.id} onClick={() => replace(item.id, item.name)}><span><strong>{item.name}</strong><small>{item.equipment.join(" · ")}</small></span><ChevronRight /></button>)}</div></section></div>}
+      {showAlternatives && <div className="modal-backdrop" onClick={() => setShowAlternatives(false)}><section className="modal" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">Nur für heute</span><h2>Übung ersetzen</h2></div><button className="icon-button" onClick={() => setShowAlternatives(false)}><X /></button></header><div className="alternative-list">{alternativesFor(exercise.originalExerciseId ?? exercise.exerciseId).map((item) => { const movement = movementMeta(item.movementPattern); return <button key={item.id} onClick={() => replace(item.id, item.name)}><span><strong>{item.name}</strong><small className="exercise-meta-line">{item.equipment.join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></small></span><ChevronRight /></button>; })}</div></section></div>}
 
-      {showExercisePicker && <div className="modal-backdrop" onClick={() => setShowExercisePicker(false)}><section className="modal exercise-picker" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">Freie Reihenfolge</span><h2>Was ist gerade frei?</h2><p>Wechsle zu einer offenen Übung. Deine bisherigen Sätze bleiben gespeichert.</p></div><button className="icon-button" onClick={() => setShowExercisePicker(false)}><X /></button></header><div className="exercise-queue">{session.exercises.map((item, index) => { const isCurrent = item.id === exercise.id; const isDone = item.status === "completed"; return <button key={item.id} disabled={isCurrent || isDone} className={`${isCurrent ? "current" : ""} ${isDone ? "done" : ""}`} onClick={() => chooseExercise(item.id)}><span className="queue-number">{isDone ? <Check size={16} /> : index + 1}</span><span className="queue-copy"><strong>{item.name}</strong><small>{item.sets.length} von {item.targetSets} Sätzen · {isCurrent ? "Gerade aktiv" : isDone ? "Abgeschlossen" : item.status === "skipped" ? "Übersprungen" : "Offen"}</small></span>{!isCurrent && !isDone && <span className="queue-action">Jetzt <ChevronRight size={16} /></span>}</button>; })}</div></section></div>}
+      {showExercisePicker && <div className="modal-backdrop" onClick={() => setShowExercisePicker(false)}><section className="modal exercise-picker" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">Freie Reihenfolge</span><h2>Was ist gerade frei?</h2><p>Wechsle zu einer offenen Übung. Deine bisherigen Sätze bleiben gespeichert.</p></div><button className="icon-button" onClick={() => setShowExercisePicker(false)}><X /></button></header><div className="exercise-queue">{session.exercises.map((item, index) => { const isCurrent = item.id === exercise.id; const isDone = item.status === "completed"; const movement = sessionMovement(item); return <button key={item.id} disabled={isCurrent || isDone} className={`${isCurrent ? "current" : ""} ${isDone ? "done" : ""}`} onClick={() => chooseExercise(item.id)}><span className="queue-number">{isDone ? <Check size={16} /> : index + 1}</span><span className="queue-copy"><strong>{item.name}</strong><span className="queue-muscles">{item.primaryMuscles.join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category} · {movement.label}</span></span><small>{item.sets.length} von {item.targetSets} Sätzen · {isCurrent ? "Gerade aktiv" : isDone ? "Abgeschlossen" : item.status === "skipped" ? "Übersprungen" : "Offen"}</small></span>{!isCurrent && !isDone && <span className="queue-action">Jetzt <ChevronRight size={16} /></span>}</button>; })}</div></section></div>}
 
       {allHandled && <div className="completion-dock"><div><Sparkles /><span><strong>Einheit geschafft</strong><small>{completedSets} Sätze protokolliert</small></span></div><button className="primary-button" onClick={finish}>Training abschließen</button></div>}
     </div>
@@ -403,7 +413,7 @@ function HistoryView({ sessions }: { sessions: WorkoutSession[] }) {
     <div className="page">
       <header className="page-header"><div><span className="eyebrow">Verlauf</span><h1>Deine Trainingshistorie</h1><p>Jede Einheit bleibt als unveränderlicher Snapshot nachvollziehbar.</p></div></header>
       <div className="stat-row"><div><strong>{sessions.length}</strong><span>Einheiten</span></div><div><strong>{totalSets}</strong><span>Arbeitssätze</span></div><div><strong>{new Set(sessions.flatMap((s) => s.exercises.filter((e) => e.sets.length).map((e) => e.exerciseId))).size}</strong><span>Übungen</span></div></div>
-      {sessions.length === 0 ? <div className="empty-state"><History size={38} /><h2>Noch keine Einheiten</h2><p>Nach deinem ersten abgeschlossenen Training erscheint hier der Verlauf.</p></div> : <div className="history-layout"><div className="session-list">{sessions.map((session) => <button key={session.id} onClick={() => setSelected(session.id)} className={selected === session.id ? "active" : ""}><span className="session-code" style={{ background: dayColor[session.dayCode] }}>{session.dayCode}</span><span><strong>{session.dayName}</strong><small>{formatDate(session.completedAt)} · {session.exercises.reduce((sum, ex) => sum + ex.sets.length, 0)} Sätze</small></span><ChevronRight /></button>)}</div>{detail && <section className="session-detail"><span className="eyebrow">Tag {detail.dayCode}</span><h2>{detail.dayName}</h2>{detail.exercises.filter((ex) => ex.sets.length).map((exercise) => <div key={exercise.id}><strong>{exercise.name}</strong><span>{exercise.sets.map((set) => `${set.load ?? "KG"} × ${set.reps} @ ${set.rir ?? "–"}`).join(" · ")}</span><small>{recommendation(exercise)}</small></div>)}</section>}</div>}
+      {sessions.length === 0 ? <div className="empty-state"><History size={38} /><h2>Noch keine Einheiten</h2><p>Nach deinem ersten abgeschlossenen Training erscheint hier der Verlauf.</p></div> : <div className="history-layout"><div className="session-list">{sessions.map((session) => <button key={session.id} onClick={() => setSelected(session.id)} className={selected === session.id ? "active" : ""}><span className="session-code" style={{ background: dayColor[session.dayCode] }}>{session.dayCode}</span><span><strong>{session.dayName}</strong><small>{formatDate(session.completedAt)} · {session.exercises.reduce((sum, ex) => sum + ex.sets.length, 0)} Sätze</small></span><ChevronRight /></button>)}</div>{detail && <section className="session-detail"><span className="eyebrow">Tag {detail.dayCode}</span><h2>{detail.dayName}</h2>{detail.exercises.filter((ex) => ex.sets.length).map((exercise) => { const movement = sessionMovement(exercise); return <div key={exercise.id}><strong>{exercise.name}</strong><span className="history-exercise-meta">{exercise.primaryMuscles.join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></span><span>{exercise.sets.map((set) => `${set.load ?? "KG"} × ${set.reps} @ ${set.rir ?? "–"}`).join(" · ")}</span><small>{recommendation(exercise)}</small></div>; })}</section>}</div>}
     </div>
   );
 }
