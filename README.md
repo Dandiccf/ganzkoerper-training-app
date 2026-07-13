@@ -30,15 +30,19 @@ npm run check
 - Persistenter Masterplan-Editor: Übungen je A/B/C-Tag sortieren, entfernen und ergänzen.
 - Dauerhafte Übungsalternativen je Muskel-/Bewegungsslot mit unveränderter Satz- und Wiederholungsvorgabe.
 - Aktiver Trainingsmodus mit Last, Wiederholungen und RIR.
+- Unterbrechungssicheres Pausieren/Fortsetzen mit persistenten Eingabeentwürfen und absolutem Timer-Endzeitpunkt.
 - Freie Übungsreihenfolge innerhalb einer Session, etwa bei belegten Geräten.
 - Flexible Satzanzahl pro Übung und Sitzung inklusive spontaner Zusatzsätze.
 - Muskelgruppen und Bewegungsprofile wie Push, Pull, Beine und Core in allen Übungslisten.
 - Satzabschluss, Überspringen und Übungstausch für die aktuelle Session.
-- Pausentimer auf Basis eines absoluten Endzeitpunkts.
-- Automatische Wiederherstellung laufender Trainings nach einem Reload.
-- Lokale Historie und einfache Progressionsempfehlungen.
+- Editieren und Löschen protokollierter Sätze mit Rückgängig-Funktion – während des Trainings und im Verlauf.
+- Automatische Wiederherstellung laufender oder pausierter Trainings nach Reload und Browser-Neustart.
+- Echte kg/lb-Konvertierung mit konfigurierbaren Gewichtsschritten und vorausgefüllten Werten aus der letzten Einheit.
+- Statistikseite für Wochen/Monate/Gesamtzeit mit Satztrend, Übungsprogression, Bewegungsmuster-Balance und Muskelgruppenverteilung.
+- Lokale Historie und Progressionsempfehlungen.
 - Vollständiger, validierter JSON-Export und -Import für Verlauf, Masterplan, Übungsreihenfolge, Slots, Alternativen und Einstellungen; zusätzlicher CSV-Export.
-- IndexedDB-Persistenz über Dexie und Service Worker für die PWA-App-Shell.
+- Versionierte IndexedDB-Persistenz über Dexie, tabübergreifende Aktualisierung und sichtbar behandelte Speicherfehler.
+- Service Worker mit vorgecacheter PWA-App-Shell, echtem Offline-Status und kontrolliertem Update-Flow.
 - Druckfertige PDF mit Wochenplan, Trainingstagen, Progression und Protokoll liegt vor.
 - Alle drei Originalvorlagen wurden archiviert.
 - 27 bereinigte Muskelgrafiken sind als App-Assets vorhanden.
@@ -94,8 +98,8 @@ ganzkoerper-training-app/
 - Next.js 16 mit App Router
 - React 19 und TypeScript im Strict Mode
 - Zod zur Laufzeitvalidierung der Seed-Daten
-- Dexie und IndexedDB für lokale Sessions und die persönliche Plan-Konfiguration
-- Vitest für Domänenlogik
+- Dexie und IndexedDB für Sessions, Eingabeentwürfe, Timer, persönliche Plan-Konfiguration und App-Einstellungen
+- Vitest inklusive Domänen-, Backup/Migrations- und IndexedDB-Integrationstests
 - ESLint und Production-Build als Qualitätsbarrieren
 
 ## Grundsatz

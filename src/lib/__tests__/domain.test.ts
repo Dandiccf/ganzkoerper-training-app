@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activateSessionExercise, nextDayCode, recommendation, setExerciseTargetSets, type SessionExercise, type WorkoutSession } from "../domain";
+import { activateSessionExercise, deleteLoggedSet, nextDayCode, recommendation, replaceSessionExercise, setExerciseTargetSets, updateLoggedSet, type SessionExercise, type WorkoutSession } from "../domain";
 
 describe("training rotation", () => {
   it("starts at A without history", () => expect(nextDayCode([])).toBe("A"));
@@ -8,8 +8,39 @@ describe("training rotation", () => {
     const sessions = [
       { dayCode: "A", status: "completed", completedAt: "2026-07-10T10:00:00Z" },
       { dayCode: "B", status: "completed", completedAt: "2026-07-12T10:00:00Z" },
-    ] as WorkoutSession[];
+    ].map((session) => ({ ...session, exercises: [{ sets: [{}] }] })) as WorkoutSession[];
     expect(nextDayCode(sessions)).toBe("C");
+  });
+
+  it("ignores legacy zero-set completions", () => {
+    const session = { dayCode: "C", status: "completed", completedAt: "2026-07-12T10:00:00Z", exercises: [{ sets: [] }] } as unknown as WorkoutSession;
+    expect(nextDayCode([session])).toBe("A");
+  });
+});
+
+describe("safe set corrections", () => {
+  const session = {
+    updatedAt: "2026-07-12T10:00:00Z",
+    exercises: [{ id: "exercise", status: "completed", targetSets: 2, sets: [
+      { id: "one", setNumber: 1, load: 20, reps: 10, rir: 2 },
+      { id: "two", setNumber: 2, load: 20, reps: 9, rir: 1 },
+    ] }],
+  } as WorkoutSession;
+
+  it("updates a logged set without changing its identity", () => {
+    const result = updateLoggedSet(session, "exercise", "one", { load: 22.5, reps: 8, rir: 1 });
+    expect(result.exercises[0].sets[0]).toMatchObject({ id: "one", setNumber: 1, load: 22.5, reps: 8, rir: 1 });
+  });
+
+  it("renumbers after deletion and reopens the exercise", () => {
+    const result = deleteLoggedSet(session, "exercise", "one");
+    expect(result.exercises[0].sets).toMatchObject([{ id: "two", setNumber: 1 }]);
+    expect(result.exercises[0].status).toBe("active");
+  });
+
+  it("does not replace an exercise that already contains sets", () => {
+    const exercise = session.exercises[0] as SessionExercise;
+    expect(replaceSessionExercise(exercise, { id: "replacement", name: "Replacement" })).toBe(exercise);
   });
 });
 

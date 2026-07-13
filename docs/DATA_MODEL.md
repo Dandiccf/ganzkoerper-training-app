@@ -10,6 +10,8 @@
 
 ## 2. Kernobjekte
 
+> Implementierungshinweis: Der aktuelle Local-first-MVP speichert diese Konzepte dokumentenorientiert in drei Dexie-Tabellen (`sessions`, `plans`, `settings`). Externe Lasten und Eingabeentwürfe liegen kanonisch in kg; kg/lb ist eine reine, persistente Anzeigeeinstellung. JSON-Backups tragen Schema-Version 4 und enthalten alle drei Bereiche atomar.
+
 ### `profiles`
 
 | Feld | Typ | Bedeutung |
@@ -99,7 +101,7 @@ Eine konkrete absolvierte oder laufende Einheit. Planwerte werden als Snapshot g
 | `program_id` | UUID | Quellprogramm |
 | `training_day_code` | Text | A, B oder C als Snapshot |
 | `program_version` | Integer | verwendete Planversion |
-| `status` | Enum | `draft`, `active`, `completed`, `discarded` |
+| `status` | Enum | `active`, `paused`, `completed`, `discarded` |
 | `started_at` | Timestamp | Start |
 | `completed_at` | Timestamp, optional | Ende |
 | `duration_seconds` | Integer | aktive Gesamtdauer |
@@ -108,6 +110,8 @@ Eine konkrete absolvierte oder laufende Einheit. Planwerte werden als Snapshot g
 | `effort` | Integer, optional | Gesamtbelastung danach |
 | `sync_status` | Enum | `local`, `pending`, `synced`, `conflict` |
 | `updated_at` | Timestamp | Konfliktauflösung |
+
+Im lokalen Sitzungsdokument werden außerdem Eingabeentwürfe je Session-Übung sowie der absolute Endzeitpunkt des Pausentimers gespeichert. Dadurch überstehen noch nicht abgeschlossene Eingaben, Pause und Timer einen Reload.
 
 ### `session_exercises`
 
@@ -197,7 +201,7 @@ Beim Start eines Trainings werden Name, Zielwiederholungen, Pausen und Reihenfol
 
 ## 5. Lasten und Körpergewichtsübungen
 
-- Externe Last wird als Dezimalwert plus Einheit gespeichert.
+- Externe Last wird im aktuellen Local-first-MVP kanonisch in Kilogramm gespeichert und bei der Anzeige verlustarm in kg oder lb umgerechnet.
 - Körpergewichtsübungen können `bodyweight` ohne Last verwenden.
 - Zusatzgewicht wird positiv gespeichert.
 - Unterstützung wird als Typ `assisted` mit positivem Unterstützungswert gespeichert.

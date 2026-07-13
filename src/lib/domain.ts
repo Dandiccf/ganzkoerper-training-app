@@ -12,6 +12,13 @@ export type SetLog = {
   completedAt: string;
 };
 
+export type ExerciseDraft = {
+  /** Canonical load in kilograms. `null` represents bodyweight. */
+  load: number | null;
+  reps: number;
+  rir: number | null;
+};
+
 export type SessionExercise = {
   id: string;
   exerciseId: string;
@@ -37,16 +44,19 @@ export type WorkoutSession = {
   dayCode: DayCode;
   dayName: string;
   focus: string;
-  status: "active" | "completed" | "discarded";
+  status: "active" | "paused" | "completed" | "discarded";
   startedAt: string;
   completedAt?: string;
   notes: string;
   exercises: SessionExercise[];
+  drafts: Record<string, ExerciseDraft>;
+  restTimerEndsAt?: string;
+  updatedAt: string;
 };
 
 export function nextDayCode(sessions: WorkoutSession[]): DayCode {
   const completed = sessions
-    .filter((session) => session.status === "completed" && session.completedAt)
+    .filter((session) => session.status === "completed" && session.completedAt && session.exercises.some((exercise) => exercise.sets.length > 0))
     .sort((a, b) => String(b.completedAt).localeCompare(String(a.completedAt)));
   if (!completed.length) return "A";
   const rotation: DayCode[] = ["A", "B", "C"];
@@ -62,8 +72,10 @@ export function createSession(day: SessionTrainingDay): WorkoutSession {
     focus: day.focus,
     status: "active",
     startedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     notes: "",
     exercises: day.exercises.map((exercise, index) => snapshotExercise(exercise, index, sessionId)),
+    drafts: {},
   };
 }
 
@@ -95,12 +107,12 @@ export function replaceSessionExercise(
   exercise: SessionExercise,
   replacement: { id: string; name: string },
 ): SessionExercise {
+  if (exercise.sets.length > 0) return exercise;
   return {
     ...exercise,
     originalExerciseId: exercise.originalExerciseId ?? exercise.exerciseId,
     exerciseId: replacement.id,
     name: replacement.name,
-    sets: [],
     status: "active",
   };
 }
@@ -153,6 +165,42 @@ export function setExerciseTargetSets(
   }
 
   return { ...session, exercises };
+}
+
+export function updateLoggedSet(
+  session: WorkoutSession,
+  exerciseId: string,
+  setId: string,
+  values: Pick<SetLog, "load" | "reps" | "rir">,
+): WorkoutSession {
+  return touchSession({
+    ...session,
+    exercises: session.exercises.map((exercise) => exercise.id === exerciseId
+      ? { ...exercise, sets: exercise.sets.map((set) => set.id === setId ? { ...set, ...values } : set) }
+      : exercise),
+  });
+}
+
+export function deleteLoggedSet(session: WorkoutSession, exerciseId: string, setId: string): WorkoutSession {
+  let exercises = session.exercises.map((exercise) => {
+    if (exercise.id !== exerciseId) return exercise;
+    const sets = exercise.sets
+      .filter((set) => set.id !== setId)
+      .map((set, index) => ({ ...set, setNumber: index + 1 }));
+    const status = exercise.status === "completed" && sets.length < exercise.targetSets ? "pending" as const : exercise.status;
+    return { ...exercise, sets, status };
+  });
+
+  if (!exercises.some((exercise) => exercise.status === "active")) {
+    const index = exercises.findIndex((exercise) => exercise.id === exerciseId && exercise.status === "pending");
+    const nextIndex = index >= 0 ? index : exercises.findIndex((exercise) => exercise.status === "pending");
+    if (nextIndex >= 0) exercises = exercises.map((exercise, position) => position === nextIndex ? { ...exercise, status: "active" as const } : exercise);
+  }
+  return touchSession({ ...session, exercises });
+}
+
+export function touchSession(session: WorkoutSession): WorkoutSession {
+  return { ...session, updatedAt: new Date().toISOString() };
 }
 
 export function recommendation(exercise: SessionExercise) {

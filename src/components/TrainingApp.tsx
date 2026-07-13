@@ -24,6 +24,7 @@ import {
   Sparkles,
   TimerReset,
   Trash2,
+  Undo2,
   Upload,
   X,
   Youtube,
@@ -37,11 +38,15 @@ import {
   recommendation,
   replaceSessionExercise,
   setExerciseTargetSets,
+  touchSession,
+  updateLoggedSet,
+  deleteLoggedSet,
+  type SetLog,
   type SessionExercise,
   type WorkoutSession,
 } from "@/src/lib/domain";
 import { createBackup, parseBackup } from "@/src/lib/backup";
-import { deleteAllData, loadPlanConfiguration, loadSessions, replaceAllData, savePlanConfiguration, saveSession } from "@/src/lib/db";
+import { clearSessionRestTimer, deleteAllData, loadAppSettings, loadPlanConfiguration, loadSessions, replaceAllData, saveAppSettings, savePlanConfiguration, saveSession, saveSessionDraft, subscribeToDataChanges } from "@/src/lib/db";
 import {
   LanguageSwitcher,
   localizeCue,
@@ -69,8 +74,10 @@ import {
   type ConfiguredTrainingDay,
   type PlanConfiguration,
 } from "@/src/lib/plan";
+import { defaultAppSettings, defaultWeightStep, displayLoad, storeLoad, type AppSettings } from "@/src/lib/settings";
+import { StatsView } from "@/src/components/StatsView";
 
-type View = "today" | "plan" | "history" | "more";
+type View = "today" | "plan" | "stats" | "history" | "more";
 
 const dayColor: Record<DayCode, string> = { A: "var(--day-a)", B: "var(--day-b)", C: "var(--day-c)" };
 
@@ -90,64 +97,177 @@ function sessionMovement(exercise: SessionExercise, locale: Locale) {
   return localizeMovement(pattern, movementMeta(pattern), locale);
 }
 
+function useDialogAccessibility(open: boolean, onClose: () => void) {
+  useEffect(() => {
+    if (!open) return;
+    const dialog = document.querySelector<HTMLElement>("[role='dialog']:last-of-type");
+    const previous = document.activeElement as HTMLElement | null;
+    const focusable = () => dialog ? [...dialog.querySelectorAll<HTMLElement>("button:not(:disabled), select:not(:disabled), input:not(:disabled), a[href], [tabindex]:not([tabindex='-1'])")] : [];
+    focusable()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items.at(-1)!;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    const oldOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = oldOverflow;
+      previous?.focus();
+    };
+  }, [onClose, open]);
+}
+
 export function TrainingApp() {
   const { locale, t } = useI18n();
   const [view, setView] = useState<View>("today");
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [planConfiguration, setPlanConfiguration] = useState<PlanConfiguration>(defaultPlanConfiguration);
+  const [settings, setSettings] = useState<AppSettings>(defaultAppSettings);
   const [ready, setReady] = useState(false);
   const [planDay, setPlanDay] = useState<DayCode>("A");
+  const [storageError, setStorageError] = useState(false);
+  const [offlineReady, setOfflineReady] = useState(false);
+  const [online, setOnline] = useState(true);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [mutationError, setMutationError] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [storedSessions, storedPlan] = await Promise.all([loadSessions(), loadPlanConfiguration()]);
-    setSessions(storedSessions);
-    setPlanConfiguration(storedPlan);
-    setReady(true);
+    try {
+      const [storedSessions, storedPlan, storedSettings] = await Promise.all([loadSessions(), loadPlanConfiguration(), loadAppSettings()]);
+      setSessions(storedSessions);
+      setPlanConfiguration(storedPlan);
+      setSettings(storedSettings);
+      setStorageError(false);
+    } catch {
+      setStorageError(true);
+    } finally {
+      setReady(true);
+    }
   }, []);
 
   useEffect(() => {
-    let mounted = true;
-    void Promise.all([loadSessions(), loadPlanConfiguration()]).then(([items, storedPlan]) => {
-      if (mounted) {
-        setSessions(items);
-        setPlanConfiguration(storedPlan);
-        setReady(true);
-      }
+    const initialFrame = window.requestAnimationFrame(() => {
+      void refresh();
+      setOnline(navigator.onLine);
     });
+    const onOnline = () => setOnline(true);
+    const onOffline = () => setOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    const unsubscribe = subscribeToDataChanges(() => { void refresh(); });
+    if (navigator.storage?.persist) void navigator.storage.persist();
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
-      void navigator.serviceWorker.register("/sw.js");
+      let refreshing = false;
+      const onControllerChange = () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      };
+      navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+      void navigator.serviceWorker.register("/sw.js").then((registration) => {
+        void navigator.serviceWorker.ready.then(() => setOfflineReady(true));
+        if (registration.waiting) setUpdateAvailable(true);
+        registration.addEventListener("updatefound", () => {
+          const worker = registration.installing;
+          worker?.addEventListener("statechange", () => {
+            if (worker.state === "installed" && navigator.serviceWorker.controller) setUpdateAvailable(true);
+          });
+        });
+      }).catch(() => setOfflineReady(false));
+      return () => {
+        window.cancelAnimationFrame(initialFrame);
+        unsubscribe();
+        window.removeEventListener("online", onOnline);
+        window.removeEventListener("offline", onOffline);
+        navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      };
     }
-    return () => { mounted = false; };
-  }, []);
+    return () => {
+      window.cancelAnimationFrame(initialFrame);
+      unsubscribe();
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, [refresh]);
 
   useEffect(() => {
     document.title = locale === "de" ? "Kraftwerk – Ganzkörpertraining" : "Kraftwerk – Full-Body Training";
   }, [locale]);
 
   const active = sessions.find((session) => session.status === "active");
+  const paused = sessions.find((session) => session.status === "paused");
   const nextCode = nextDayCode(sessions);
   const configuredDays = useMemo(() => resolvePlanDays(planConfiguration), [planConfiguration]);
   const nextDay = configuredDays.find((day) => day.code === nextCode)!;
-  const completed = sessions.filter((session) => session.status === "completed");
+  const completed = sessions.filter((session) => session.status === "completed" && session.exercises.some((exercise) => exercise.sets.length > 0));
 
   async function startTraining(code: DayCode) {
-    const day = configuredDays.find((item) => item.code === code)!;
-    const session = createSession(day);
-    await saveSession(session);
-    await refresh();
+    if (paused) return;
+    try {
+      setMutationError(false);
+      const day = configuredDays.find((item) => item.code === code)!;
+      const session = createSession(day);
+      await saveSession(session);
+      await refresh();
+    } catch { setMutationError(true); }
+  }
+
+  async function resumeTraining() {
+    if (!paused) return;
+    try {
+      setMutationError(false);
+      await saveSession(touchSession({ ...paused, status: "active" }));
+      await refresh();
+    } catch { setMutationError(true); }
+  }
+
+  async function discardPausedTraining() {
+    if (!paused || !window.confirm(t("today.confirmDiscard"))) return;
+    try {
+      setMutationError(false);
+      await saveSession(touchSession({ ...paused, status: "discarded", restTimerEndsAt: undefined }));
+      await refresh();
+    } catch { setMutationError(true); }
   }
 
   async function updatePlan(next: PlanConfiguration) {
-    await savePlanConfiguration(next);
-    setPlanConfiguration(next);
+    try {
+      setMutationError(false);
+      await savePlanConfiguration(next);
+      setPlanConfiguration(next);
+    } catch { setMutationError(true); }
+  }
+
+  async function updateSettings(next: AppSettings) {
+    try {
+      setMutationError(false);
+      const saved = await saveAppSettings(next);
+      setSettings(saved);
+    } catch { setMutationError(true); }
   }
 
   if (!ready) {
     return <div className="loading"><Dumbbell size={32} /> {t("status.loading")}</div>;
   }
 
+  if (storageError) {
+    return <div className="loading error-state"><Dumbbell size={32} /><h1>{t("storage.title")}</h1><p>{t("storage.help")}</p><button className="primary-button" onClick={() => void refresh()}>{t("storage.retry")}</button></div>;
+  }
+
   if (active) {
-    return <WorkoutView session={active} sessions={sessions} onChange={refresh} />;
+    return <WorkoutView session={active} sessions={sessions} settings={settings} onChange={refresh} />;
   }
 
   return (
@@ -160,17 +280,24 @@ export function TrainingApp() {
       </aside>
 
       <main className="main-content">
+        <div className="connection-status" role="status"><span className={online ? "online" : "offline"} />{online ? offlineReady ? t("status.offlineReady") : t("status.online") : t("status.offline")}</div>
+        {updateAvailable && <button className="update-banner" onClick={() => navigator.serviceWorker.getRegistration().then((registration) => registration?.waiting?.postMessage({ type: "SKIP_WAITING" }))}>{t("status.update")}</button>}
+        {mutationError && <div className="app-error" role="alert">{t("storage.saveError")}<button aria-label={t("common.close")} onClick={() => setMutationError(false)}><X size={15} /></button></div>}
         {view === "today" && (
           <TodayView
             nextDay={nextDay}
             sessions={sessions}
             completed={completed}
             onStart={startTraining}
+            paused={paused}
+            onResume={resumeTraining}
+            onDiscard={discardPausedTraining}
           />
         )}
         {view === "plan" && <PlanView selected={planDay} onSelect={setPlanDay} configuration={planConfiguration} onChange={updatePlan} />}
-        {view === "history" && <HistoryView sessions={completed} />}
-        {view === "more" && <MoreView sessions={sessions} planConfiguration={planConfiguration} onChange={refresh} />}
+        {view === "stats" && <StatsView sessions={completed} settings={settings} />}
+        {view === "history" && <HistoryView sessions={completed} settings={settings} onChange={refresh} />}
+        {view === "more" && <MoreView sessions={sessions} planConfiguration={planConfiguration} settings={settings} onSettingsChange={updateSettings} onChange={refresh} />}
       </main>
 
       <nav className="mobile-nav" aria-label={t("nav.aria")}>
@@ -194,7 +321,8 @@ function Navigation({ view, onChange, mobile = false }: { view: View; onChange: 
   const { t } = useI18n();
   const items: { id: View; label: string; icon: typeof Home }[] = [
     { id: "today", label: t("nav.today"), icon: Home },
-    { id: "plan", label: t("nav.plan"), icon: BarChart3 },
+    { id: "plan", label: t("nav.plan"), icon: ListChecks },
+    { id: "stats", label: t("nav.stats"), icon: BarChart3 },
     { id: "history", label: t("nav.history"), icon: History },
     { id: "more", label: mobile ? t("nav.more") : t("nav.settings"), icon: mobile ? MoreHorizontal : Settings2 },
   ];
@@ -202,7 +330,7 @@ function Navigation({ view, onChange, mobile = false }: { view: View; onChange: 
     <div className={mobile ? "nav-items mobile" : "nav-items"}>
       {items.map((item) => {
         const Icon = item.icon;
-        return <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => onChange(item.id)}><Icon size={20} /><span>{item.label}</span></button>;
+        return <button key={item.id} aria-current={view === item.id ? "page" : undefined} className={view === item.id ? "active" : ""} onClick={() => onChange(item.id)}><Icon size={20} /><span>{item.label}</span></button>;
       })}
     </div>
   );
@@ -213,14 +341,22 @@ function TodayView({
   sessions,
   completed,
   onStart,
+  paused,
+  onResume,
+  onDiscard,
 }: {
   nextDay: ConfiguredTrainingDay;
   sessions: WorkoutSession[];
   completed: WorkoutSession[];
   onStart: (code: DayCode) => void;
+  paused?: WorkoutSession;
+  onResume: () => void;
+  onDiscard: () => void;
 }) {
   const { locale, t } = useI18n();
   const latest = completed[0];
+  const latestSets = latest?.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0) ?? 0;
+  const pausedSets = paused?.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0) ?? 0;
   const localizedNextDay = localizeDay(nextDay.code, nextDay, locale);
   const thisWeek = completed.filter((session) => {
     const date = new Date(session.completedAt!);
@@ -236,8 +372,9 @@ function TodayView({
     <div className="page">
       <header className="page-header">
         <div><span className="eyebrow">{t("today.eyebrow")}</span><h1>{t("today.title")}</h1><p>{t("today.subtitle")}</p></div>
-        <span className="offline-pill"><span /> {t("status.offline")}</span>
       </header>
+
+      {paused && <section className="resume-card"><span className="day-badge" style={{ "--accent": dayColor[paused.dayCode] } as React.CSSProperties}>{t("common.day").toUpperCase()} {paused.dayCode}</span><div><span className="eyebrow">{t("today.paused")}</span><h2>{localizeDay(paused.dayCode, { name: paused.dayName, focus: paused.focus }, locale).name}</h2><p>{pausedSets} {t(pausedSets === 1 ? "common.setSingular" : "common.sets")} · {t("today.resumeHelp")}</p></div><div><button className="primary-button" onClick={onResume}><Play size={18} /> {t("today.resume")}</button><button className="text-button danger-text" onClick={onDiscard}><Trash2 size={16} /> {t("today.discard")}</button></div></section>}
 
       <section className="hero-card" style={{ "--accent": dayColor[nextDay.code] } as React.CSSProperties}>
         <div className="hero-copy">
@@ -248,7 +385,7 @@ function TodayView({
             <span><Clock3 size={17} /> {trainingPlan.estimatedDurationMinutes.min}–{trainingPlan.estimatedDurationMinutes.max} Min.</span>
             <span><Dumbbell size={17} /> {nextDay.exercises.length} {t("common.exercises")} · {nextDay.exercises.reduce((sum, exercise) => sum + exercise.sets, 0)} {t("common.sets")}</span>
           </div>
-          <button className="primary-button" onClick={() => onStart(nextDay.code)}><Play size={19} fill="currentColor" /> {t("today.start")}</button>
+          <button className="primary-button" disabled={Boolean(paused)} onClick={() => onStart(nextDay.code)}><Play size={19} fill="currentColor" /> {paused ? t("today.resumeFirst") : t("today.start")}</button>
         </div>
         <div className="hero-visual"><span>{nextDay.code}</span><small>{localizeMuscles(nextDay.exercises[0].primaryMuscles, locale).join(" · ")} {t("today.more")}</small></div>
       </section>
@@ -272,7 +409,7 @@ function TodayView({
 
         <section className="panel last-session">
           <span className="eyebrow">{t("today.last")}</span>
-          {latest ? <><h3>{t("common.day")} {latest.dayCode} · {localizeDay(latest.dayCode, { name: latest.dayName, focus: latest.focus }, locale).name}</h3><p>{formatDate(latest.completedAt, locale)} · {latest.exercises.reduce((sum, ex) => sum + ex.sets.length, 0)} {t("common.sets")}</p><div className="quiet-success"><Sparkles size={18} /> {t("today.nextGoal")}</div></> : <><h3>{t("today.none")}</h3><p>{t("today.noneHelp")}</p></>}
+          {latest ? <><h3>{t("common.day")} {latest.dayCode} · {localizeDay(latest.dayCode, { name: latest.dayName, focus: latest.focus }, locale).name}</h3><p>{formatDate(latest.completedAt, locale)} · {latestSets} {t(latestSets === 1 ? "common.setSingular" : "common.sets")}</p><div className="quiet-success"><Sparkles size={18} /> {t("today.nextGoal")}</div></> : <><h3>{t("today.none")}</h3><p>{t("today.noneHelp")}</p></>}
         </section>
       </div>
 
@@ -304,6 +441,9 @@ function PlanView({
   const baseExercises = trainingPlan.days.flatMap((item) => item.exercises);
   const baseExercise = selectedSlot ? baseExercises.find((exercise) => exercise.id === selectedSlot.baseExerciseId) : undefined;
   const addable = availableBaseExercises(configuration, selected);
+  const totalPlanSets = resolvePlanDays(configuration).reduce((sum, item) => sum + item.exercises.reduce((daySum, exercise) => daySum + exercise.sets, 0), 0);
+  const closePlanDialog = useCallback(() => { setAlternativeSlot(null); setShowAdd(false); }, [setAlternativeSlot, setShowAdd]);
+  useDialogAccessibility(Boolean((selectedSlot && baseExercise) || showAdd), closePlanDialog);
 
   async function commit(next: PlanConfiguration) {
     await onChange(next);
@@ -316,9 +456,9 @@ function PlanView({
 
   return (
     <div className="page">
-      <header className="page-header"><div><span className="eyebrow">{t("plan.eyebrow")}</span><h1>{t("plan.title")}</h1><p>{t("plan.subtitle")}</p></div><div className="page-header-actions"><Link href="/grundidee" className="learn-link"><Sparkles size={17} /> {t("plan.learn")}</Link><button className={`learn-link ${editing ? "active" : ""}`} onClick={() => setEditing((value) => !value)}><Pencil size={17} /> {editing ? t("plan.doneEditing") : t("plan.edit")}</button></div></header>
+      <header className="page-header"><div><span className="eyebrow">{t("plan.eyebrow")}</span><h1>{t("plan.title")}</h1><p>{t("plan.subtitleDynamic", { sets: totalPlanSets })}</p></div><div className="page-header-actions"><Link href="/grundidee" className="learn-link"><Sparkles size={17} /> {t("plan.learn")}</Link><button className={`learn-link ${editing ? "active" : ""}`} onClick={() => setEditing((value) => !value)}><Pencil size={17} /> {editing ? t("plan.doneEditing") : t("plan.edit")}</button></div></header>
       <div className="day-tabs">
-        {trainingPlan.days.map((item) => <button key={item.code} className={selected === item.code ? "active" : ""} onClick={() => onSelect(item.code)} style={{ "--accent": dayColor[item.code] } as React.CSSProperties}><span>{t("common.day")} {item.code}</span><small>{localizeDay(item.code, item, locale).name}</small></button>)}
+        {trainingPlan.days.map((item) => <button key={item.code} aria-pressed={selected === item.code} className={selected === item.code ? "active" : ""} onClick={() => onSelect(item.code)} style={{ "--accent": dayColor[item.code] } as React.CSSProperties}><span>{t("common.day")} {item.code}</span><small>{localizeDay(item.code, item, locale).name}</small></button>)}
       </div>
       {editing && <div className="plan-editor-toolbar"><p><Pencil size={17} /> {t("plan.editorHint")}</p>{isCustomizedDay(configuration, selected) && <button onClick={resetDay}><RefreshCw size={16} /> {t("plan.resetDay")}</button>}</div>}
       <section className="plan-header" style={{ "--accent": dayColor[selected] } as React.CSSProperties}><span className="day-badge">{t("common.day").toUpperCase()} {selected}</span><div><h2>{localizedDay.name}</h2><p>{localizedDay.focus}</p></div><strong>{day.exercises.length} {t("common.exercises")}</strong></section>
@@ -343,68 +483,125 @@ function PlanView({
         {editing && <button className="add-exercise-button" onClick={() => setShowAdd(true)}><Plus size={19} /> {t("plan.addExercise")}</button>}
       </div>
 
-      {selectedSlot && baseExercise && <div className="modal-backdrop" onClick={() => setAlternativeSlot(null)}><section className="modal" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("plan.chooseAlternative")}</span><h2>{localizeMuscles(baseExercise.primaryMuscles, locale).join(" · ")}</h2><p>{t("plan.alternativeHelp")}</p></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setAlternativeSlot(null)}><X /></button></header><div className="alternative-list master-alternatives">{[baseExercise, ...alternativesFor(baseExercise.id)].map((item) => { const movement = localizeMovement(item.movementPattern, movementMeta(item.movementPattern), locale); const active = selectedSlot.exerciseId === item.id; return <button key={item.id} className={active ? "selected" : ""} onClick={async () => { await commit(replacePlanSlotExercise(configuration, selected, selectedSlot.id, item.id)); setAlternativeSlot(null); }}><span><strong>{localizeExerciseName(item.id, item.name, locale)} {item.id === baseExercise.id && <small className="configured-pill">{t("plan.baseExercise")}</small>}</strong><small className="exercise-meta-line">{localizeEquipment(item.equipment, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></small></span>{active ? <Check /> : <ChevronRight />}</button>; })}</div></section></div>}
+      {selectedSlot && baseExercise && <div className="modal-backdrop" onClick={() => setAlternativeSlot(null)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="plan-alternative-title" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("plan.chooseAlternative")}</span><h2 id="plan-alternative-title">{localizeMuscles(baseExercise.primaryMuscles, locale).join(" · ")}</h2><p>{t("plan.alternativeHelp")}</p></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setAlternativeSlot(null)}><X /></button></header><div className="alternative-list master-alternatives">{[baseExercise, ...alternativesFor(baseExercise.id)].map((item) => { const movement = localizeMovement(item.movementPattern, movementMeta(item.movementPattern), locale); const active = selectedSlot.exerciseId === item.id; return <button key={item.id} className={active ? "selected" : ""} onClick={async () => { await commit(replacePlanSlotExercise(configuration, selected, selectedSlot.id, item.id)); setAlternativeSlot(null); }}><span><strong>{localizeExerciseName(item.id, item.name, locale)} {item.id === baseExercise.id && <small className="configured-pill">{t("plan.baseExercise")}</small>}</strong><small className="exercise-meta-line">{localizeEquipment(item.equipment, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></small></span>{active ? <Check /> : <ChevronRight />}</button>; })}</div></section></div>}
 
-      {showAdd && <div className="modal-backdrop" onClick={() => setShowAdd(false)}><section className="modal exercise-picker" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("plan.addExercise")}</span><h2>{t("plan.addTitle")}</h2><p>{t("plan.addHelp")}</p></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setShowAdd(false)}><X /></button></header>{addable.length ? <div className="exercise-queue add-slot-list">{addable.map((exercise) => { const movement = localizeMovement(exercise.movementPattern, movementMeta(exercise.movementPattern), locale); return <button key={exercise.id} onClick={async () => { await commit(addPlanSlot(configuration, selected, exercise.id, crypto.randomUUID())); setShowAdd(false); }}><span className="queue-copy"><strong>{localizeExerciseName(exercise.id, exercise.name, locale)}</strong><span className="queue-muscles">{localizeMuscles(exercise.primaryMuscles, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category} · {movement.label}</span></span><small>{exercise.sets} × {exercise.repRange.min}–{exercise.repRange.max} · {localizeEquipment(exercise.equipment, locale).join(" · ")}</small></span><span className="queue-action"><Plus size={17} /></span></button>; })}</div> : <div className="empty-state"><Check size={32} /><p>{t("plan.noExercisesAvailable")}</p></div>}</section></div>}
+      {showAdd && <div className="modal-backdrop" onClick={() => setShowAdd(false)}><section className="modal exercise-picker" role="dialog" aria-modal="true" aria-labelledby="plan-add-title" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("plan.addExercise")}</span><h2 id="plan-add-title">{t("plan.addTitle")}</h2><p>{t("plan.addHelp")}</p></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setShowAdd(false)}><X /></button></header>{addable.length ? <div className="exercise-queue add-slot-list">{addable.map((exercise) => { const movement = localizeMovement(exercise.movementPattern, movementMeta(exercise.movementPattern), locale); return <button key={exercise.id} onClick={async () => { await commit(addPlanSlot(configuration, selected, exercise.id, crypto.randomUUID())); setShowAdd(false); }}><span className="queue-copy"><strong>{localizeExerciseName(exercise.id, exercise.name, locale)}</strong><span className="queue-muscles">{localizeMuscles(exercise.primaryMuscles, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category} · {movement.label}</span></span><small>{exercise.sets} × {exercise.repRange.min}–{exercise.repRange.max} · {localizeEquipment(exercise.equipment, locale).join(" · ")}</small></span><span className="queue-action"><Plus size={17} /></span></button>; })}</div> : <div className="empty-state"><Check size={32} /><p>{t("plan.noExercisesAvailable")}</p></div>}</section></div>}
     </div>
   );
 }
 
-function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession; sessions: WorkoutSession[]; onChange: () => Promise<void> }) {
+function WorkoutView({ session, sessions, settings, onChange }: { session: WorkoutSession; sessions: WorkoutSession[]; settings: AppSettings; onChange: () => Promise<void> }) {
   const { locale, t } = useI18n();
   const currentIndex = Math.max(0, session.exercises.findIndex((exercise) => exercise.status === "active"));
   const exercise = session.exercises[currentIndex];
   const exerciseName = localizeExerciseName(exercise.exerciseId, exercise.name, locale);
   const localizedDay = localizeDay(session.dayCode, { name: session.dayName, focus: session.focus }, locale);
-  const [load, setLoad] = useState(0);
-  const [reps, setReps] = useState(exercise.repMin);
-  const [rir, setRir] = useState<number | null>(2);
-  const [timerEnd, setTimerEnd] = useState<number | null>(null);
+  const previous = sessions
+    .filter((item) => item.status === "completed" && item.id !== session.id)
+    .flatMap((item) => item.exercises)
+    .find((item) => item.exerciseId === exercise.exerciseId && item.sets.length);
+  const initialDraft = session.drafts?.[exercise.id];
+  const previousSet = previous?.sets.at(-1);
+  const [load, setLoad] = useState(displayLoad(initialDraft?.load ?? previousSet?.load ?? null, settings.unit) ?? 0);
+  const [reps, setReps] = useState(initialDraft?.reps ?? previousSet?.reps ?? exercise.repMin);
+  const [rir, setRir] = useState<number | null>(initialDraft?.rir ?? previousSet?.rir ?? 2);
+  const [timerEnd, setTimerEnd] = useState<number | null>(session.restTimerEndsAt ? Date.parse(session.restTimerEndsAt) : null);
   const [remaining, setRemaining] = useState(0);
   const [showAlternatives, setShowAlternatives] = useState(false);
   const [showExercisePicker, setShowExercisePicker] = useState(false);
+  const [editingSet, setEditingSet] = useState<{ id: string; load: number; reps: number; rir: number | null } | null>(null);
+  const [undoSnapshot, setUndoSnapshot] = useState<WorkoutSession | null>(null);
+  const [saveError, setSaveError] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [timerDone, setTimerDone] = useState(false);
+  const closeWorkoutDialog = useCallback(() => { setShowAlternatives(false); setShowExercisePicker(false); setEditingSet(null); }, [setEditingSet, setShowAlternatives, setShowExercisePicker]);
+  useDialogAccessibility(showAlternatives || showExercisePicker || Boolean(editingSet), closeWorkoutDialog);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const draft = session.drafts?.[exercise.id];
+      const prior = sessions
+        .filter((item) => item.status === "completed" && item.id !== session.id)
+        .flatMap((item) => item.exercises)
+        .find((item) => item.exerciseId === exercise.exerciseId && item.sets.length)
+        ?.sets.at(-1);
+      setLoad(displayLoad(draft?.load ?? prior?.load ?? null, settings.unit) ?? 0);
+      setReps(draft?.reps ?? prior?.reps ?? exercise.repMin);
+      setRir(draft?.rir ?? prior?.rir ?? 2);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [exercise.id, exercise.exerciseId, exercise.repMin, session.drafts, session.id, sessions, settings.unit]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setTimerEnd(session.restTimerEndsAt ? Date.parse(session.restTimerEndsAt) : null));
+    return () => window.cancelAnimationFrame(frame);
+  }, [session.restTimerEndsAt]);
 
   useEffect(() => {
     if (!timerEnd) return;
     const tick = () => {
       const value = Math.max(0, Math.ceil((timerEnd - Date.now()) / 1000));
       setRemaining(value);
-      if (value === 0) setTimerEnd(null);
+      if (value === 0) {
+        setTimerEnd(null);
+        setTimerDone(true);
+        navigator.vibrate?.([180, 80, 180]);
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification(t("workout.timerDone"), { body: exerciseName, tag: "kraftwerk-rest" });
+        }
+        void clearSessionRestTimer(session.id);
+      }
     };
     tick();
     const interval = window.setInterval(tick, 500);
     return () => window.clearInterval(interval);
-  }, [timerEnd]);
+  }, [exerciseName, session.id, t, timerEnd]);
 
   const completedSets = session.exercises.reduce((sum, item) => sum + item.sets.length, 0);
   const totalSets = session.exercises.reduce((sum, item) => sum + item.targetSets, 0);
   const currentMovement = sessionMovement(exercise, locale);
-  const previous = sessions
-    .filter((item) => item.status === "completed")
-    .flatMap((item) => item.exercises)
-    .find((item) => item.exerciseId === exercise.exerciseId && item.sets.length);
-
   async function update(next: WorkoutSession) {
-    await saveSession(next);
-    await onChange();
+    try {
+      setSaveError(false);
+      const withCurrentDraft = {
+        ...next,
+        drafts: {
+          ...(next.drafts ?? {}),
+          [exercise.id]: { load: load ? storeLoad(load, settings.unit) : null, reps, rir },
+        },
+      };
+      await saveSession(touchSession(withCurrentDraft));
+      await onChange();
+    } catch {
+      setSaveError(true);
+    }
+  }
+
+  function persistDraft(nextLoad: number, nextReps: number, nextRir: number | null) {
+    void saveSessionDraft(session.id, exercise.id, { load: nextLoad ? storeLoad(nextLoad, settings.unit) : null, reps: nextReps, rir: nextRir }).catch(() => setSaveError(true));
   }
 
   async function completeSet() {
+    if (submitting || reps < 1 || load < 0) return;
+    setSubmitting(true);
     const next = structuredClone(session);
     const target = next.exercises[currentIndex];
-    target.sets.push({ id: crypto.randomUUID(), setNumber: target.sets.length + 1, load: load || null, reps, rir, completedAt: new Date().toISOString() });
-    setTimerEnd(Date.now() + target.restSeconds * 1000);
+    target.sets.push({ id: crypto.randomUUID(), setNumber: target.sets.length + 1, load: load ? storeLoad(load, settings.unit) : null, reps, rir, completedAt: new Date().toISOString() });
+    const end = Date.now() + target.restSeconds * 1000;
+    next.restTimerEndsAt = new Date(end).toISOString();
+    next.drafts = { ...(next.drafts ?? {}), [exercise.id]: { load: load ? storeLoad(load, settings.unit) : null, reps, rir } };
+    setTimerEnd(end);
+    setTimerDone(false);
+    setUndoSnapshot(session);
     if (target.sets.length >= target.targetSets) {
       target.status = "completed";
       const nextExercise = next.exercises.find((item) => item.status === "pending");
       if (nextExercise) {
         nextExercise.status = "active";
-        setReps(nextExercise.repMin);
-        setLoad(0);
-        setRir(2);
       }
     }
     await update(next);
+    setSubmitting(false);
   }
 
   async function skipExercise() {
@@ -422,21 +619,34 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
 
   async function finish() {
     const next = structuredClone(session);
+    if (!allHandled && completedSets === 0) {
+      if (!window.confirm(t("workout.confirmDiscardEmpty"))) return;
+      next.status = "discarded";
+      next.restTimerEndsAt = undefined;
+      await update(next);
+      return;
+    }
+    if (!allHandled && !window.confirm(t("workout.confirmFinishPartial", { sets: completedSets }))) return;
     next.status = "completed";
     next.completedAt = new Date().toISOString();
+    next.restTimerEndsAt = undefined;
     next.exercises.forEach((item) => { if (item.status === "active" || item.status === "pending") item.status = "skipped"; });
     await update(next);
   }
 
+  async function pauseWorkout() {
+    const next = structuredClone(session);
+    next.status = "paused";
+    await update(next);
+  }
+
   async function replace(id: string, name: string) {
+    if (exercise.sets.length > 0) return;
     const next = structuredClone(session);
     next.exercises[currentIndex] = {
       ...replaceSessionExercise(next.exercises[currentIndex], { id, name }),
       movementPattern: movementPatternForExercise(id),
     };
-    setLoad(0);
-    setReps(next.exercises[currentIndex].repMin);
-    setRir(2);
     await update(next);
     setShowAlternatives(false);
   }
@@ -450,10 +660,6 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
     const next = activateSessionExercise(prepared, id);
     const selected = next.exercises.find((item) => item.id === id);
     if (!selected) return;
-    const lastSet = selected.sets.at(-1);
-    setLoad(lastSet?.load ?? 0);
-    setReps(lastSet?.reps ?? selected.repMin);
-    setRir(lastSet?.rir ?? 2);
     await update(next);
     setShowExercisePicker(false);
   }
@@ -463,9 +669,45 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
     const nextActive = next.exercises.find((item) => item.status === "active");
     if (nextActive && nextActive.id !== exercise.id) {
       const lastSet = nextActive.sets.at(-1);
-      setLoad(lastSet?.load ?? 0);
+      setLoad(displayLoad(lastSet?.load ?? null, settings.unit) ?? 0);
       setReps(lastSet?.reps ?? nextActive.repMin);
       setRir(lastSet?.rir ?? 2);
+    }
+    await update(next);
+  }
+
+  async function saveEditedSet() {
+    if (!editingSet || editingSet.reps < 1 || editingSet.load < 0) return;
+    const next = updateLoggedSet(session, exercise.id, editingSet.id, {
+      load: editingSet.load ? storeLoad(editingSet.load, settings.unit) : null,
+      reps: editingSet.reps,
+      rir: editingSet.rir,
+    });
+    await update(next);
+    setEditingSet(null);
+  }
+
+  async function removeSet(setId: string) {
+    setUndoSnapshot(session);
+    await update(deleteLoggedSet(session, exercise.id, setId));
+  }
+
+  async function undoLastAction() {
+    if (!undoSnapshot) return;
+    const snapshot = undoSnapshot;
+    setUndoSnapshot(null);
+    await update(snapshot);
+  }
+
+  async function changeTimer(delta: number | null) {
+    const next = structuredClone(session);
+    if (delta === null) {
+      next.restTimerEndsAt = undefined;
+      setTimerEnd(null);
+    } else {
+      const end = (timerEnd ?? Date.now()) + delta;
+      next.restTimerEndsAt = new Date(end).toISOString();
+      setTimerEnd(end);
     }
     await update(next);
   }
@@ -474,11 +716,12 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
   return (
     <div className="workout-shell">
       <header className="workout-header">
-        <div className="workout-header-tools"><button className="icon-button" onClick={() => void onChange()} aria-label={t("workout.pause")}><Pause size={20} /></button><LanguageSwitcher compact /></div>
+        <div className="workout-header-tools"><button className="icon-button" onClick={pauseWorkout} aria-label={t("workout.pause")}><Pause size={20} /></button><LanguageSwitcher compact /></div>
         <button className="workout-progress-button" onClick={() => setShowExercisePicker(true)}><span>{t("common.day").toUpperCase()} {session.dayCode} · {localizedDay.name}</span><strong><ListChecks size={15} /> {t("workout.exercise")} {currentIndex + 1} {t("common.of")} {session.exercises.length}</strong></button>
         <button className="finish-link" onClick={finish}>{allHandled ? t("workout.finish") : t("workout.finishEarly")}</button>
       </header>
-      <div className="progress-track"><span style={{ width: `${(completedSets / totalSets) * 100}%` }} /></div>
+      <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={totalSets} aria-valuenow={completedSets}><span style={{ width: `${(completedSets / totalSets) * 100}%` }} /></div>
+      {saveError && <div className="workout-error" role="alert">{t("storage.saveError")} <button onClick={() => void onChange()}>{t("storage.retry")}</button></div>}
 
       <main className="workout-main">
         <section className="workout-exercise">
@@ -490,29 +733,34 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
           <div className="active-exercise-meta"><span>{localizeMuscles(exercise.primaryMuscles, locale).join(" · ")}</span><span className={`movement-chip ${currentMovement.tone}`}>{currentMovement.category} · {currentMovement.label}</span></div>
           <h1>{exerciseName}</h1>
           <p className="cue">{localizeCue(exercise.originalExerciseId ?? exercise.exerciseId, exercise.techniqueCue, locale)}</p>
-          <div className="workout-secondary-actions"><button className="text-button" onClick={() => setShowExercisePicker(true)}><ListChecks size={16} /> {t("workout.choose")}</button><button className="text-button" onClick={() => setShowAlternatives(true)}><RefreshCw size={16} /> {t("workout.replace")}</button></div>
+          <div className="workout-secondary-actions"><button className="text-button" onClick={() => setShowExercisePicker(true)}><ListChecks size={16} /> {t("workout.choose")}</button><button className="text-button" disabled={exercise.sets.length > 0} title={exercise.sets.length > 0 ? t("workout.replaceLocked") : undefined} onClick={() => setShowAlternatives(true)}><RefreshCw size={16} /> {exercise.sets.length > 0 ? t("workout.replaceLockedShort") : t("workout.replace")}</button></div>
         </section>
 
         <section className="set-entry">
           <div className="target-box"><span>{t("workout.target")}</span><strong>{exercise.repMin}–{exercise.repMax} {t("workout.repsShort")}</strong><small>RIR {exercise.targetRirMin}–{exercise.targetRirMax}</small></div>
           <div className="session-set-control"><span><strong>{t("workout.workingSets")}</strong><small>{t("workout.sessionOnly")}</small></span><div className="set-stepper"><button aria-label={t("workout.removeSet")} disabled={exercise.targetSets <= Math.max(1, exercise.sets.length)} onClick={() => adjustTargetSets(-1)}>−</button><strong>{exercise.targetSets}</strong><button aria-label={t("workout.addSet")} onClick={() => adjustTargetSets(1)}>+</button></div></div>
-          {previous && <p className="previous">{t("workout.lastTime")} {previous.sets.map((set) => `${set.load ?? "KG"} × ${set.reps}`).join(" · ")}</p>}
+          {previous && <p className="previous">{t("workout.lastTime")} {previous.sets.map((set) => `${set.load === null ? t("common.bodyweight") : `${displayLoad(set.load, settings.unit)} ${settings.unit}`} × ${set.reps}`).join(" · ")}</p>}
           <div className="number-fields">
-            <NumberField label={t("workout.weight")} value={load} suffix="kg" min={0} step={2.5} onChange={setLoad} />
-            <NumberField label={t("workout.repetitions")} value={reps} suffix={t("workout.repsShort")} min={0} step={1} onChange={setReps} />
+            <NumberField label={t("workout.weight")} value={load} suffix={settings.unit} min={0} step={settings.weightStep} onChange={(value) => { setLoad(value); persistDraft(value, reps, rir); }} />
+            <NumberField label={t("workout.repetitions")} value={reps} suffix={t("workout.repsShort")} min={1} step={1} onChange={(value) => { setReps(value); persistDraft(load, value, rir); }} />
           </div>
-          <div className="rir-entry"><span>RIR <small>{t("workout.rirHelp")}</small></span><div>{[0, 1, 2, 3, 4].map((value) => <button key={value} className={rir === value ? "active" : ""} onClick={() => setRir(value)}>{value}{value === 4 ? "+" : ""}</button>)}</div></div>
-          <button className="primary-button wide" onClick={completeSet}><Check size={20} /> {t("workout.completeSet")}</button>
+          <div className="rir-entry"><span>RIR <small>{t("workout.rirHelp")}</small></span><div>{[0, 1, 2, 3, 4].map((value) => <button key={value} className={rir === value ? "active" : ""} onClick={() => { setRir(value); persistDraft(load, reps, value); }}>{value}{value === 4 ? "+" : ""}</button>)}</div></div>
+          <button className="primary-button wide" disabled={submitting || reps < 1 || load < 0} onClick={completeSet}><Check size={20} /> {submitting ? t("workout.saving") : t("workout.completeSet")}</button>
           <button className="skip-button" onClick={skipExercise}><SkipForward size={17} /> {t("workout.skipExercise")}</button>
-          {exercise.sets.length > 0 && <div className="logged-sets">{exercise.sets.map((set) => <span key={set.id}><Check size={15} /> {t("common.set")} {set.setNumber}: {set.load ? `${set.load} kg` : t("common.bodyweight")} × {set.reps}, RIR {set.rir ?? "–"}</span>)}</div>}
+          {exercise.sets.length > 0 && <div className="logged-sets">{exercise.sets.map((set) => <div key={set.id}><span><Check size={15} /> {t("common.set")} {set.setNumber}: {set.load !== null ? `${displayLoad(set.load, settings.unit)} ${settings.unit}` : t("common.bodyweight")} × {set.reps}, RIR {set.rir ?? "–"}</span><span className="logged-set-actions"><button aria-label={t("workout.editSet")} onClick={() => setEditingSet({ id: set.id, load: displayLoad(set.load, settings.unit) ?? 0, reps: set.reps, rir: set.rir })}><Pencil size={15} /></button><button aria-label={t("workout.deleteSet")} onClick={() => removeSet(set.id)}><Trash2 size={15} /></button></span></div>)}</div>}
         </section>
       </main>
 
-      {timerEnd && <div className="timer-bar"><TimerReset size={22} /><div><span>{t("common.rest")}</span><strong>{formatDuration(remaining)}</strong></div><button onClick={() => setTimerEnd((value) => (value ?? Date.now()) + 15_000)}>+15s</button><button onClick={() => setTimerEnd(null)}>{t("common.skip")}</button></div>}
+      {timerEnd && <div className="timer-bar" role="timer" aria-live="polite"><TimerReset size={22} /><div><span>{t("common.rest")}</span><strong>{formatDuration(remaining)}</strong></div><button onClick={() => changeTimer(15_000)}>+15s</button><button onClick={() => changeTimer(-15_000)}>−15s</button><button onClick={() => changeTimer(null)}>{t("common.skip")}</button></div>}
+      {timerDone && <div className="timer-done" role="status"><Check size={18} /><span>{t("workout.timerDone")}</span><button aria-label={t("common.close")} onClick={() => setTimerDone(false)}><X size={15} /></button></div>}
 
-      {showAlternatives && <div className="modal-backdrop" onClick={() => setShowAlternatives(false)}><section className="modal" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("workout.onlyToday")}</span><h2>{t("workout.replace")}</h2></div><button className="icon-button" onClick={() => setShowAlternatives(false)}><X /></button></header><div className="alternative-list">{alternativesFor(exercise.originalExerciseId ?? exercise.exerciseId).map((item) => { const movement = localizeMovement(item.movementPattern, movementMeta(item.movementPattern), locale); return <button key={item.id} onClick={() => replace(item.id, item.name)}><span><strong>{localizeExerciseName(item.id, item.name, locale)}</strong><small className="exercise-meta-line">{localizeEquipment(item.equipment, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></small></span><ChevronRight /></button>; })}</div></section></div>}
+      {showAlternatives && <div className="modal-backdrop" onClick={() => setShowAlternatives(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="workout-alternatives-title" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("workout.onlyToday")}</span><h2 id="workout-alternatives-title">{t("workout.replace")}</h2></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setShowAlternatives(false)}><X /></button></header><div className="alternative-list">{alternativesFor(exercise.originalExerciseId ?? exercise.exerciseId).map((item) => { const movement = localizeMovement(item.movementPattern, movementMeta(item.movementPattern), locale); return <button key={item.id} onClick={() => replace(item.id, item.name)}><span><strong>{localizeExerciseName(item.id, item.name, locale)}</strong><small className="exercise-meta-line">{localizeEquipment(item.equipment, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></small></span><ChevronRight /></button>; })}</div></section></div>}
 
-      {showExercisePicker && <div className="modal-backdrop" onClick={() => setShowExercisePicker(false)}><section className="modal exercise-picker" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("workout.freeOrder")}</span><h2>{t("workout.freeTitle")}</h2><p>{t("workout.freeHelp")}</p></div><button className="icon-button" onClick={() => setShowExercisePicker(false)}><X /></button></header><div className="exercise-queue">{session.exercises.map((item, index) => { const isCurrent = item.id === exercise.id; const isDone = item.status === "completed"; const movement = sessionMovement(item, locale); return <button key={item.id} disabled={isCurrent} className={`${isCurrent ? "current" : ""} ${isDone ? "done" : ""}`} onClick={() => chooseExercise(item.id)}><span className="queue-number">{isDone ? <Check size={16} /> : index + 1}</span><span className="queue-copy"><strong>{localizeExerciseName(item.exerciseId, item.name, locale)}</strong><span className="queue-muscles">{localizeMuscles(item.primaryMuscles, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category} · {movement.label}</span></span><small>{item.sets.length} {t("common.of")} {item.targetSets} {t("common.sets")} · {isCurrent ? t("workout.active") : isDone ? t("workout.completed") : item.status === "skipped" ? t("workout.skipped") : t("workout.open")}</small></span>{!isCurrent && <span className="queue-action">{isDone ? t("workout.extraSet") : t("workout.now")} <ChevronRight size={16} /></span>}</button>; })}</div></section></div>}
+      {showExercisePicker && <div className="modal-backdrop" onClick={() => setShowExercisePicker(false)}><section className="modal exercise-picker" role="dialog" aria-modal="true" aria-labelledby="exercise-picker-title" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("workout.freeOrder")}</span><h2 id="exercise-picker-title">{t("workout.freeTitle")}</h2><p>{t("workout.freeHelp")}</p></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setShowExercisePicker(false)}><X /></button></header><div className="exercise-queue">{session.exercises.map((item, index) => { const isCurrent = item.id === exercise.id; const isDone = item.status === "completed"; const movement = sessionMovement(item, locale); return <button key={item.id} disabled={isCurrent} className={`${isCurrent ? "current" : ""} ${isDone ? "done" : ""}`} onClick={() => chooseExercise(item.id)}><span className="queue-number">{isDone ? <Check size={16} /> : index + 1}</span><span className="queue-copy"><strong>{localizeExerciseName(item.exerciseId, item.name, locale)}</strong><span className="queue-muscles">{localizeMuscles(item.primaryMuscles, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category} · {movement.label}</span></span><small>{item.sets.length} {t("common.of")} {item.targetSets} {t(item.targetSets === 1 ? "common.setSingular" : "common.sets")} · {isCurrent ? t("workout.active") : isDone ? t("workout.completed") : item.status === "skipped" ? t("workout.skipped") : t("workout.open")}</small></span>{!isCurrent && <span className="queue-action">{isDone ? t("workout.extraSet") : t("workout.now")} <ChevronRight size={16} /></span>}</button>; })}</div></section></div>}
+
+      {editingSet && <div className="modal-backdrop" onClick={() => setEditingSet(null)}><section className="modal set-editor-modal" role="dialog" aria-modal="true" aria-labelledby="set-editor-title" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("workout.correctSet")}</span><h2 id="set-editor-title">{t("workout.editSet")}</h2></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setEditingSet(null)}><X /></button></header><div className="number-fields"><NumberField label={t("workout.weight")} value={editingSet.load} suffix={settings.unit} min={0} step={settings.weightStep} onChange={(value) => setEditingSet({ ...editingSet, load: value })} /><NumberField label={t("workout.repetitions")} value={editingSet.reps} suffix={t("workout.repsShort")} min={1} step={1} onChange={(value) => setEditingSet({ ...editingSet, reps: value })} /></div><div className="rir-entry"><span>RIR</span><div>{[0, 1, 2, 3, 4].map((value) => <button key={value} className={editingSet.rir === value ? "active" : ""} onClick={() => setEditingSet({ ...editingSet, rir: value })}>{value}{value === 4 ? "+" : ""}</button>)}</div></div><button className="primary-button wide" onClick={saveEditedSet}><Check size={18} /> {t("common.save")}</button></section></div>}
+
+      {undoSnapshot && <div className="undo-bar" role="status"><span>{t("workout.undoHelp")}</span><button onClick={undoLastAction}><Undo2 size={16} /> {t("common.undo")}</button><button aria-label={t("common.close")} onClick={() => setUndoSnapshot(null)}><X size={15} /></button></div>}
 
       {allHandled && <div className="completion-dock"><div><Sparkles /><span><strong>{t("workout.sessionDone")}</strong><small>{completedSets} {t("workout.logged")}</small></span></div><button className="primary-button" onClick={finish}>{t("workout.complete")}</button></div>}
     </div>
@@ -520,28 +768,85 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
 }
 
 function NumberField({ label, value, suffix, min, step, onChange }: { label: string; value: number; suffix: string; min: number; step: number; onChange: (value: number) => void }) {
-  return <label className="number-field"><span>{label}</span><div><button onClick={() => onChange(Math.max(min, value - step))}>−</button><input inputMode="decimal" type="number" min={min} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} /><small>{suffix}</small><button onClick={() => onChange(value + step)}>+</button></div></label>;
+  return <label className="number-field"><span>{label}</span><div><button onClick={() => onChange(Math.max(min, value - step))}>−</button><input inputMode="decimal" type="number" min={min} step={step} value={value} onChange={(event) => { const next = Number(event.target.value); onChange(Number.isFinite(next) ? Math.max(min, next) : min); }} /><small>{suffix}</small><button onClick={() => onChange(Math.max(min, value + step))}>+</button></div></label>;
 }
 
-function HistoryView({ sessions }: { sessions: WorkoutSession[] }) {
+function HistoryView({ sessions, settings, onChange }: { sessions: WorkoutSession[]; settings: AppSettings; onChange: () => Promise<void> }) {
   const { locale, t } = useI18n();
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(sessions[0]?.id ?? null);
+  const [editing, setEditing] = useState<{ sessionId: string; exerciseId: string; set: SetLog; load: number } | null>(null);
+  const [undoSnapshot, setUndoSnapshot] = useState<WorkoutSession | null>(null);
+  const [saveError, setSaveError] = useState(false);
+  const closeHistoryDialog = useCallback(() => setEditing(null), [setEditing]);
+  useDialogAccessibility(Boolean(editing), closeHistoryDialog);
   const detail = sessions.find((session) => session.id === selected);
   const totalSets = sessions.reduce((sum, session) => sum + session.exercises.reduce((inner, exercise) => inner + exercise.sets.length, 0), 0);
+
+  function countSets(value: number) {
+    return `${value} ${t(value === 1 ? "common.setSingular" : "common.sets")}`;
+  }
+
+  function setText(set: SetLog) {
+    const loadText = set.load === null ? t("common.bodyweight") : `${displayLoad(set.load, settings.unit)} ${settings.unit}`;
+    return `${loadText} × ${set.reps} @ ${set.rir ?? "–"}`;
+  }
+
+  async function saveHistorySession(next: WorkoutSession) {
+    try {
+      setSaveError(false);
+      await saveSession(next);
+      await onChange();
+      return true;
+    } catch {
+      setSaveError(true);
+      return false;
+    }
+  }
+
+  async function saveHistorySet() {
+    if (!editing) return;
+    const target = sessions.find((session) => session.id === editing.sessionId);
+    if (!target) return;
+    const saved = await saveHistorySession(updateLoggedSet(target, editing.exerciseId, editing.set.id, {
+      load: editing.load ? storeLoad(editing.load, settings.unit) : null,
+      reps: editing.set.reps,
+      rir: editing.set.rir,
+    }));
+    if (saved) setEditing(null);
+  }
+
+  async function deleteHistorySet(session: WorkoutSession, exerciseId: string, setId: string) {
+    const next = structuredClone(session);
+    const exercise = next.exercises.find((item) => item.id === exerciseId);
+    if (!exercise) return;
+    exercise.sets = exercise.sets.filter((set) => set.id !== setId).map((set, index) => ({ ...set, setNumber: index + 1 }));
+    exercise.status = exercise.sets.length ? "completed" : "skipped";
+    if (await saveHistorySession(touchSession(next))) setUndoSnapshot(session);
+  }
+
+  async function undoHistoryChange() {
+    if (!undoSnapshot) return;
+    const snapshot = undoSnapshot;
+    if (await saveHistorySession(snapshot)) setUndoSnapshot(null);
+  }
+
   return (
     <div className="page">
       <header className="page-header"><div><span className="eyebrow">{t("history.eyebrow")}</span><h1>{t("history.title")}</h1><p>{t("history.subtitle")}</p></div></header>
+      {saveError && <div className="inline-error" role="alert">{t("storage.saveError")}<button onClick={() => setSaveError(false)} aria-label={t("common.close")}><X size={15} /></button></div>}
       <div className="stat-row"><div><strong>{sessions.length}</strong><span>{t("history.sessions")}</span></div><div><strong>{totalSets}</strong><span>{t("history.workingSets")}</span></div><div><strong>{new Set(sessions.flatMap((s) => s.exercises.filter((e) => e.sets.length).map((e) => e.exerciseId))).size}</strong><span>{t("history.exercises")}</span></div></div>
-      {sessions.length === 0 ? <div className="empty-state"><History size={38} /><h2>{t("history.empty")}</h2><p>{t("history.emptyHelp")}</p></div> : <div className="history-layout"><div className="session-list">{sessions.map((session) => <button key={session.id} onClick={() => setSelected(session.id)} className={selected === session.id ? "active" : ""}><span className="session-code" style={{ background: dayColor[session.dayCode] }}>{session.dayCode}</span><span><strong>{localizeDay(session.dayCode, { name: session.dayName, focus: session.focus }, locale).name}</strong><small>{formatDate(session.completedAt, locale)} · {session.exercises.reduce((sum, ex) => sum + ex.sets.length, 0)} {t("common.sets")}</small></span><ChevronRight /></button>)}</div>{detail && <section className="session-detail"><span className="eyebrow">{t("common.day")} {detail.dayCode}</span><h2>{localizeDay(detail.dayCode, { name: detail.dayName, focus: detail.focus }, locale).name}</h2>{detail.exercises.filter((ex) => ex.sets.length).map((exercise) => { const movement = sessionMovement(exercise, locale); return <div key={exercise.id}><strong>{localizeExerciseName(exercise.exerciseId, exercise.name, locale)}</strong><span className="history-exercise-meta">{localizeMuscles(exercise.primaryMuscles, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></span><span>{exercise.sets.map((set) => `${set.load ?? "KG"} × ${set.reps} @ ${set.rir ?? "–"}`).join(" · ")}</span><small>{localizeRecommendation(recommendation(exercise), locale)}</small></div>; })}</section>}</div>}
+      {sessions.length === 0 ? <div className="empty-state"><History size={38} /><h2>{t("history.empty")}</h2><p>{t("history.emptyHelp")}</p></div> : <div className="history-layout"><div className="session-list">{sessions.map((session) => { const setCount = session.exercises.reduce((sum, ex) => sum + ex.sets.length, 0); return <button key={session.id} onClick={() => setSelected(session.id)} className={selected === session.id ? "active" : ""}><span className="session-code" style={{ background: dayColor[session.dayCode] }}>{session.dayCode}</span><span><strong>{localizeDay(session.dayCode, { name: session.dayName, focus: session.focus }, locale).name}</strong><small>{formatDate(session.completedAt, locale)} · {countSets(setCount)}</small></span><ChevronRight /></button>; })}</div>{detail && <section className="session-detail"><span className="eyebrow">{t("common.day")} {detail.dayCode}</span><h2>{localizeDay(detail.dayCode, { name: detail.dayName, focus: detail.focus }, locale).name}</h2>{detail.exercises.filter((ex) => ex.sets.length).map((exercise) => { const movement = sessionMovement(exercise, locale); return <div key={exercise.id}><strong>{localizeExerciseName(exercise.exerciseId, exercise.name, locale)}</strong><span className="history-exercise-meta">{localizeMuscles(exercise.primaryMuscles, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></span><div className="history-set-list">{exercise.sets.map((set) => <span key={set.id}><span>{t("common.set")} {set.setNumber}: {setText(set)}</span><span><button aria-label={t("workout.editSet")} onClick={() => setEditing({ sessionId: detail.id, exerciseId: exercise.id, set, load: displayLoad(set.load, settings.unit) ?? 0 })}><Pencil size={14} /></button><button aria-label={t("workout.deleteSet")} onClick={() => deleteHistorySet(detail, exercise.id, set.id)}><Trash2 size={14} /></button></span></span>)}</div><small>{localizeRecommendation(recommendation(exercise), locale)}</small></div>; })}</section>}</div>}
+
+      {editing && <div className="modal-backdrop" onClick={() => setEditing(null)}><section className="modal set-editor-modal" role="dialog" aria-modal="true" aria-labelledby="history-set-editor-title" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("workout.correctSet")}</span><h2 id="history-set-editor-title">{t("workout.editSet")}</h2></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setEditing(null)}><X /></button></header><div className="number-fields"><NumberField label={t("workout.weight")} value={editing.load} suffix={settings.unit} min={0} step={settings.weightStep} onChange={(load) => setEditing({ ...editing, load })} /><NumberField label={t("workout.repetitions")} value={editing.set.reps} suffix={t("workout.repsShort")} min={1} step={1} onChange={(reps) => setEditing({ ...editing, set: { ...editing.set, reps } })} /></div><div className="rir-entry"><span>RIR</span><div>{[0, 1, 2, 3, 4].map((value) => <button key={value} className={editing.set.rir === value ? "active" : ""} onClick={() => setEditing({ ...editing, set: { ...editing.set, rir: value } })}>{value}{value === 4 ? "+" : ""}</button>)}</div></div><button className="primary-button wide" onClick={saveHistorySet}><Check size={18} /> {t("common.save")}</button></section></div>}
+      {undoSnapshot && <div className="undo-bar" role="status"><span>{t("workout.undoHelp")}</span><button onClick={undoHistoryChange}><Undo2 size={16} /> {t("common.undo")}</button><button aria-label={t("common.close")} onClick={() => setUndoSnapshot(null)}><X size={15} /></button></div>}
     </div>
   );
 }
 
-function MoreView({ sessions, planConfiguration, onChange }: { sessions: WorkoutSession[]; planConfiguration: PlanConfiguration; onChange: () => Promise<void> }) {
-  const { preference, setPreference, t } = useI18n();
-  const [unit, setUnit] = useState<"kg" | "lb">("kg");
+function MoreView({ sessions, planConfiguration, settings, onSettingsChange, onChange }: { sessions: WorkoutSession[]; planConfiguration: PlanConfiguration; settings: AppSettings; onSettingsChange: (settings: AppSettings) => Promise<void>; onChange: () => Promise<void> }) {
+  const { locale, preference, setPreference, t } = useI18n();
   const [importStatus, setImportStatus] = useState<"idle" | "success" | "error">("idle");
-  const completedCount = useMemo(() => sessions.filter((session) => session.status === "completed").length, [sessions]);
+  const completedCount = useMemo(() => sessions.filter((session) => session.status === "completed" && session.exercises.some((exercise) => exercise.sets.length)).length, [sessions]);
 
   function download(name: string, type: string, content: string) {
     const url = URL.createObjectURL(new Blob([content], { type }));
@@ -553,8 +858,20 @@ function MoreView({ sessions, planConfiguration, onChange }: { sessions: Workout
   }
 
   function exportCsv() {
-    const rows = ["session_id,tag,datum,uebung,satz,gewicht,wiederholungen,rir"];
-    for (const session of sessions) for (const exercise of session.exercises) for (const set of exercise.sets) rows.push([session.id, session.dayCode, session.completedAt ?? session.startedAt, `"${exercise.name}"`, set.setNumber, set.load ?? "", set.reps, set.rir ?? ""].join(","));
+    const rows = [`session_id,tag,datum,status,uebung,muskelgruppen,bewegungsmuster,satz,gewicht_${settings.unit},wiederholungen,rir`];
+    for (const session of sessions) for (const exercise of session.exercises) for (const set of exercise.sets) rows.push([
+      session.id,
+      session.dayCode,
+      session.completedAt ?? session.startedAt,
+      session.status,
+      `"${localizeExerciseName(exercise.exerciseId, exercise.name, locale).replaceAll('"', '""')}"`,
+      `"${localizeMuscles(exercise.primaryMuscles, locale).join(" · ")}"`,
+      exercise.movementPattern ?? movementPatternForExercise(exercise.exerciseId),
+      set.setNumber,
+      set.load === null ? "" : displayLoad(set.load, settings.unit),
+      set.reps,
+      set.rir ?? "",
+    ].join(","));
     download("kraftwerk-training.csv", "text/csv;charset=utf-8", rows.join("\n"));
   }
 
@@ -564,8 +881,7 @@ function MoreView({ sessions, planConfiguration, onChange }: { sessions: Workout
     try {
       const backup = parseBackup(JSON.parse(await file.text()));
       if (!window.confirm(t("settings.confirmImport"))) return;
-      await replaceAllData(backup.sessions, backup.planConfiguration);
-      setUnit(backup.preferences.unit);
+      await replaceAllData(backup.sessions, backup.planConfiguration, backup.settings);
       setPreference(backup.preferences.language);
       await onChange();
       setImportStatus("success");
@@ -576,16 +892,18 @@ function MoreView({ sessions, planConfiguration, onChange }: { sessions: Workout
 
   async function clearData() {
     if (!window.confirm(t("settings.confirmDelete"))) return;
-    await deleteAllData();
-    await onChange();
+    try {
+      await deleteAllData();
+      await onChange();
+    } catch { setImportStatus("error"); }
   }
 
   return (
     <div className="page settings-page">
       <header className="page-header"><div><span className="eyebrow">{t("settings.eyebrow")}</span><h1>{t("settings.title")}</h1><p>{t("settings.subtitle")}</p></div></header>
-      <section className="settings-section"><h2>{t("settings.training")}</h2><div className="setting-row language-setting"><span><strong>{t("language.label")}</strong><small>{t("language.auto")}, DE, EN</small></span><LanguageSwitcher /></div><div className="setting-row"><span><strong>{t("settings.units")}</strong><small>{t("settings.unitsHelp")}</small></span><div className="segmented"><button className={unit === "kg" ? "active" : ""} onClick={() => setUnit("kg")}>kg</button><button className={unit === "lb" ? "active" : ""} onClick={() => setUnit("lb")}>lb</button></div></div><div className="setting-row"><span><strong>{t("settings.timer")}</strong><small>{t("settings.timerHelp")}</small></span><span>75–180 s</span></div></section>
+      <section className="settings-section"><h2>{t("settings.training")}</h2><div className="setting-row language-setting"><span><strong>{t("language.label")}</strong><small>{t("language.auto")}, DE, EN</small></span><LanguageSwitcher /></div><div className="setting-row"><span><strong>{t("settings.units")}</strong><small>{t("settings.unitsHelp")}</small></span><div className="segmented"><button aria-pressed={settings.unit === "kg"} className={settings.unit === "kg" ? "active" : ""} onClick={() => void onSettingsChange({ ...settings, unit: "kg", weightStep: defaultWeightStep("kg") })}>kg</button><button aria-pressed={settings.unit === "lb"} className={settings.unit === "lb" ? "active" : ""} onClick={() => void onSettingsChange({ ...settings, unit: "lb", weightStep: defaultWeightStep("lb") })}>lb</button></div></div><label className="setting-row"><span><strong>{t("settings.weightStep")}</strong><small>{t("settings.weightStepHelp")}</small></span><span className="setting-number"><input type="number" min="0.25" step="0.25" value={settings.weightStep} onChange={(event) => { const weightStep = Math.max(.25, Number(event.target.value) || defaultWeightStep(settings.unit)); void onSettingsChange({ ...settings, weightStep }); }} /> {settings.unit}</span></label><div className="setting-row"><span><strong>{t("settings.timer")}</strong><small>{t("settings.timerHelp")}</small></span><span>75–180 s</span></div></section>
       <section className="settings-section"><h2>{t("settings.source")}</h2><a className="settings-source-card" href="https://www.youtube.com/watch?v=I7UtSo0NTaA" target="_blank" rel="noreferrer"><span className="settings-source-icon"><Youtube size={25} /></span><span><strong>„MEHR MUSKELN in WENIGER ZEIT (kompletter Trainingsplan)“</strong><small>{t("settings.sourceDescription")}</small></span><span className="settings-source-action">{t("settings.sourceLink")} <ExternalLink size={16} /></span></a></section>
-      <section className="settings-section"><h2>{t("settings.data")}</h2><div className="data-card"><div><strong>{completedCount} {t("settings.saved")}</strong><small>{t("settings.deviceOnly")}</small></div><span className="offline-pill"><span /> {t("settings.safe")}</span></div><p className="import-help">{t("settings.importHelp")}</p><div className="button-row"><button onClick={() => download("kraftwerk-training.json", "application/json", JSON.stringify(createBackup(sessions, planConfiguration, { language: preference, unit }), null, 2))}>{t("settings.exportJson")}</button><label className="import-button"><Upload size={17} /> {t("settings.importJson")}<input type="file" accept="application/json,.json" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; void importJson(file); }} /></label><button onClick={exportCsv}>{t("settings.exportCsv")}</button></div>{importStatus !== "idle" && <p className={`import-status ${importStatus}`} role="status">{t(importStatus === "success" ? "settings.importSuccess" : "settings.importError")}</p>}<button className="danger-button" onClick={clearData}><Trash2 size={17} /> {t("settings.delete")}</button></section>
+      <section className="settings-section"><h2>{t("settings.data")}</h2><div className="data-card"><div><strong>{completedCount} {t("settings.saved")}</strong><small>{t("settings.deviceOnly")}</small></div><span className="offline-pill"><span /> {t("settings.safe")}</span></div><p className="import-help">{t("settings.importHelp")}</p><div className="button-row"><button onClick={() => download("kraftwerk-training.json", "application/json", JSON.stringify(createBackup(sessions, planConfiguration, { language: preference }, settings), null, 2))}>{t("settings.exportJson")}</button><label className="import-button"><Upload size={17} /> {t("settings.importJson")}<input type="file" accept="application/json,.json" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; void importJson(file); }} /></label><button onClick={exportCsv}>{t("settings.exportCsv")}</button></div>{importStatus !== "idle" && <p className={`import-status ${importStatus}`} role="status">{t(importStatus === "success" ? "settings.importSuccess" : "settings.importError")}</p>}<button className="danger-button" onClick={clearData}><Trash2 size={17} /> {t("settings.delete")}</button></section>
       <section className="settings-section about"><h2>{t("settings.about")}</h2><p>Version 0.1.0 · Local-first PWA</p><p>{t("settings.disclaimer")}</p></section>
     </div>
   );
