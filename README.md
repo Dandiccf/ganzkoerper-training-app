@@ -14,6 +14,8 @@ Die App ist für die praktische Nutzung im Gym gebaut: Übungen lassen sich spon
 
 Es ist kein Konto erforderlich. Trainingsdaten bleiben standardmäßig lokal im Browser und können jederzeit als JSON oder CSV exportiert werden. Die PWA lässt sich auf unterstützten Geräten installieren und nach dem ersten vollständigen Laden offline verwenden.
 
+> **Keine Trainingsdaten in der Cloud:** Kraftwerk selbst enthält kein Tracking, keine Analytics, keine Werbung und keine serverseitige Datenbank. Trainingsverlauf, Plananpassungen und Einstellungen bleiben ausschließlich im verwendeten Browser auf dem Endgerät. Für einen Gerätewechsel steht ein vollständiger JSON-Export mit anschließendem Import zur Verfügung.
+
 ## Screenshots
 
 | Heute und nächste Einheit | Flexibler A/B/C-Trainingsplan |
@@ -135,14 +137,34 @@ Ein Git-Push allein löst bei diesem Direct-Upload-Projekt kein Cloudflare-Deplo
 
 ## Daten und Privatsphäre
 
-Kraftwerk speichert Trainingsdaten standardmäßig ausschließlich in der IndexedDB des verwendeten Browsers. Es gibt aktuell keinen Benutzeraccount und keinen Cloud-Sync.
+Kraftwerk verfolgt einen konsequenten Local-first-Ansatz:
+
+- kein Benutzerkonto und keine Anmeldung;
+- keine serverseitige Trainingsdatenbank und kein Cloud-Sync;
+- keine Analytics, Telemetrie, Werbung oder Tracking-Cookies durch die App;
+- kein Upload von Trainings-, Körper- oder Gesundheitsdaten;
+- Speicherung von Trainingseinheiten, Entwürfen, Timern, Plananpassungen und Einstellungen ausschließlich in IndexedDB beziehungsweise lokalem Browserspeicher auf dem Endgerät.
+
+Beim Aufruf der Online-App wird die Website technisch über Cloudflare Pages ausgeliefert. Cloudflare kann dabei notwendige Verbindungs- und Verkehrsdaten wie IP-Adresse, Routingdaten oder Systeminformationen verarbeiten. Diese technischen Hostingdaten sind von den lokal gespeicherten Trainingsdaten getrennt; Kraftwerk übermittelt keine Trainingsinhalte an Cloudflare. Einzelheiten beschreibt die [Datenschutzerklärung von Cloudflare](https://www.cloudflare.com/policies/privacy/).
+
+### Wechsel auf ein anderes Gerät
+
+Für eine vollständige Übertragung wird das **JSON-Backup** verwendet:
+
+1. Auf dem bisherigen Gerät unter **Einstellungen & Daten** auf **JSON exportieren** klicken.
+2. Die erzeugte Datei sicher auf das neue Gerät übertragen.
+3. Kraftwerk auf dem neuen Gerät öffnen und unter **Einstellungen & Daten** **JSON importieren** wählen.
+4. Den Import bestätigen. Er ersetzt den eventuell bereits vorhandenen lokalen Datenbestand in diesem Browser.
+
+Das JSON-Backup enthält Trainingsverlauf, laufende oder pausierte Sitzungen samt Entwürfen und Timer, den angepassten Masterplan, Übungsalternativen, Sprache sowie Einheiten- und Gewichtseinstellungen. Der CSV-Export ist nur zur tabellarischen Auswertung gedacht und kann keinen vollständigen App-Zustand wiederherstellen.
 
 Dadurch gilt:
 
 - verschiedene Browser, Geräte und Domains besitzen getrennte lokale Datenbestände;
 - ein Wechsel von `localhost` zur öffentlichen `pages.dev`-Adresse benötigt einen JSON-Export und anschließenden Import;
 - das Löschen der Website-Daten im Browser kann lokale Trainingsdaten entfernen;
-- regelmäßige JSON-Backups sind empfehlenswert.
+- regelmäßige JSON-Backups sind empfehlenswert;
+- die JSON-Datei ist unverschlüsselt und sollte wie ein persönliches Trainingsprotokoll vertraulich behandelt werden.
 
 ## Projektstruktur
 
