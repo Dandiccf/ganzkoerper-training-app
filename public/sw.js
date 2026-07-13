@@ -1,8 +1,8 @@
-const CACHE = "kraftwerk-v2";
+const CACHE = "kraftwerk-v4";
 const MUSCLE_IMAGES = ["a", "b", "c"].flatMap((day) =>
   Array.from({ length: 9 }, (_, index) => `/muscle-groups/${day}-${index + 1}.png`)
 );
-const STATIC = ["/", "/manifest.webmanifest", "/cover.png", ...MUSCLE_IMAGES];
+const STATIC = ["/", "/grundidee", "/manifest.webmanifest", "/cover.png", ...MUSCLE_IMAGES];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(STATIC)));
@@ -18,6 +18,20 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            void caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+          }
+          return response;
+        })
+        .catch(async () => (await caches.match(event.request)) ?? (await caches.match("/")) ?? Response.error())
+    );
+    return;
+  }
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
@@ -29,10 +43,7 @@ self.addEventListener("fetch", (event) => {
           }
           return response;
         })
-        .catch(async () => {
-          if (event.request.mode === "navigate") return (await caches.match("/")) ?? Response.error();
-          return Response.error();
-        });
+        .catch(() => Response.error());
     })
   );
 });

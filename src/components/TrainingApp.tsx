@@ -20,6 +20,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createSession,
@@ -220,7 +221,7 @@ function PlanView({ selected, onSelect }: { selected: DayCode; onSelect: (code: 
   const [openExercise, setOpenExercise] = useState<string | null>(null);
   return (
     <div className="page">
-      <header className="page-header"><div><span className="eyebrow">Trainingsplan</span><h1>Die A/B/C-Rotation</h1><p>54 Arbeitssätze, flexibel über die Woche verteilt.</p></div></header>
+      <header className="page-header"><div><span className="eyebrow">Trainingsplan</span><h1>Die A/B/C-Rotation</h1><p>54 Arbeitssätze, flexibel über die Woche verteilt.</p></div><Link href="/grundidee" className="learn-link"><Sparkles size={17} /> Grundidee verstehen</Link></header>
       <div className="day-tabs">
         {trainingPlan.days.map((item) => <button key={item.code} className={selected === item.code ? "active" : ""} onClick={() => onSelect(item.code)} style={{ "--accent": dayColor[item.code] } as React.CSSProperties}><span>Tag {item.code}</span><small>{item.name}</small></button>)}
       </div>
