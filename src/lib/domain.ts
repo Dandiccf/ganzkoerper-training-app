@@ -116,6 +116,39 @@ export function activateSessionExercise(session: WorkoutSession, exerciseId: str
   };
 }
 
+export function setExerciseTargetSets(
+  session: WorkoutSession,
+  exerciseId: string,
+  requestedTargetSets: number,
+): WorkoutSession {
+  const target = session.exercises.find((exercise) => exercise.id === exerciseId);
+  if (!target) return session;
+
+  const targetSets = Math.max(1, target.sets.length, Math.round(requestedTargetSets));
+  let exercises = session.exercises.map((exercise) => {
+    if (exercise.id !== exerciseId) return exercise;
+
+    let status = exercise.status;
+    if (status !== "skipped") {
+      if (exercise.sets.length >= targetSets) status = "completed";
+      else if (status === "completed") status = "pending";
+    }
+
+    return { ...exercise, targetSets, status };
+  });
+
+  if (!exercises.some((exercise) => exercise.status === "active")) {
+    const nextIndex = exercises.findIndex((exercise) => exercise.status === "pending");
+    if (nextIndex >= 0) {
+      exercises = exercises.map((exercise, index) => (
+        index === nextIndex ? { ...exercise, status: "active" as const } : exercise
+      ));
+    }
+  }
+
+  return { ...session, exercises };
+}
+
 export function recommendation(exercise: SessionExercise) {
   if (exercise.sets.length < exercise.targetSets) return "Noch keine Empfehlung";
   const atTop = exercise.sets.every((set) => set.reps >= exercise.repMax && (set.rir ?? 0) >= 1);

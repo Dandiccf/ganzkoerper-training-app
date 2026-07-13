@@ -132,6 +132,14 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(84, 142, 125
 .target-box { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--soft-green); border-radius: 13px; padding: 14px 16px; color: var(--green); }
 .target-box span { text-transform: uppercase; letter-spacing: .1em; font-size: 10px; font-weight: 800; }
 .target-box small { color: var(--muted); }
+.session-set-control { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 13px; }
+.session-set-control > span strong, .session-set-control > span small { display: block; }
+.session-set-control > span strong { font-size: 12px; }
+.session-set-control > span small { color: var(--muted); font-size: 10px; margin-top: 2px; }
+.set-stepper { display: grid; grid-template-columns: 38px 34px 38px; align-items: center; text-align: center; }
+.set-stepper button { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 10px; background: #f3f0e9; color: var(--green); font-size: 21px; cursor: pointer; }
+.set-stepper button:disabled { opacity: .35; cursor: not-allowed; }
+.set-stepper strong { font-size: 17px; }
 .previous { font-size: 11px; color: var(--muted); text-align: center; margin: 13px 0 0; }
 .number-fields { display: grid; gap: 18px; margin: 24px 0; }
 .number-field > span { display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; color: var(--muted); }
@@ -172,7 +180,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(84, 142, 125
 .exercise-queue > button { width: 100%; min-height: 76px; display: grid; grid-template-columns: 38px 1fr auto; gap: 11px; align-items: center; text-align: left; border: 1px solid var(--line); background: white; border-radius: 13px; padding: 9px 13px; cursor: pointer; }
 .exercise-queue > button:not(:disabled):hover { border-color: var(--green); background: #fbfcf8; }
 .exercise-queue > button.current { border-color: #9db8a7; background: var(--soft-green); }
-.exercise-queue > button.done { opacity: .58; background: #f0eee8; }
+.exercise-queue > button.done { background: #f0eee8; }
+.exercise-queue > button.done:disabled { opacity: .58; }
 .queue-number { width: 34px; height: 34px; border-radius: 50%; background: #eeeae1; color: var(--muted); display: grid; place-items: center; font-size: 11px; font-weight: 800; }
 .current .queue-number { background: var(--green); color: white; }
 .done .queue-number { background: #789887; color: white; }

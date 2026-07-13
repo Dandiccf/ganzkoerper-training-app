@@ -29,6 +29,7 @@ import {
   nextDayCode,
   recommendation,
   replaceSessionExercise,
+  setExerciseTargetSets,
   type SessionExercise,
   type WorkoutSession,
 } from "@/src/lib/domain";
@@ -342,7 +343,12 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
   }
 
   async function chooseExercise(id: string) {
-    const next = activateSessionExercise(session, id);
+    const chosen = session.exercises.find((item) => item.id === id);
+    if (!chosen) return;
+    const prepared = chosen.status === "completed"
+      ? setExerciseTargetSets(session, id, Math.max(chosen.targetSets + 1, chosen.sets.length + 1))
+      : session;
+    const next = activateSessionExercise(prepared, id);
     const selected = next.exercises.find((item) => item.id === id);
     if (!selected) return;
     const lastSet = selected.sets.at(-1);
@@ -351,6 +357,18 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
     setRir(lastSet?.rir ?? 2);
     await update(next);
     setShowExercisePicker(false);
+  }
+
+  async function adjustTargetSets(delta: number) {
+    const next = setExerciseTargetSets(session, exercise.id, exercise.targetSets + delta);
+    const nextActive = next.exercises.find((item) => item.status === "active");
+    if (nextActive && nextActive.id !== exercise.id) {
+      const lastSet = nextActive.sets.at(-1);
+      setLoad(lastSet?.load ?? 0);
+      setReps(lastSet?.reps ?? nextActive.repMin);
+      setRir(lastSet?.rir ?? 2);
+    }
+    await update(next);
   }
 
   const allHandled = session.exercises.every((item) => item.status === "completed" || item.status === "skipped");
@@ -378,6 +396,7 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
 
         <section className="set-entry">
           <div className="target-box"><span>Ziel</span><strong>{exercise.repMin}–{exercise.repMax} Wdh.</strong><small>RIR {exercise.targetRirMin}–{exercise.targetRirMax}</small></div>
+          <div className="session-set-control"><span><strong>Arbeitssätze</strong><small>Nur für diese Sitzung</small></span><div className="set-stepper"><button aria-label="Einen Arbeitssatz entfernen" disabled={exercise.targetSets <= Math.max(1, exercise.sets.length)} onClick={() => adjustTargetSets(-1)}>−</button><strong>{exercise.targetSets}</strong><button aria-label="Einen Arbeitssatz hinzufügen" onClick={() => adjustTargetSets(1)}>+</button></div></div>
           {previous && <p className="previous">Letztes Mal: {previous.sets.map((set) => `${set.load ?? "KG"} × ${set.reps}`).join(" · ")}</p>}
           <div className="number-fields">
             <NumberField label="Gewicht" value={load} suffix="kg" min={0} step={2.5} onChange={setLoad} />
@@ -394,7 +413,7 @@ function WorkoutView({ session, sessions, onChange }: { session: WorkoutSession;
 
       {showAlternatives && <div className="modal-backdrop" onClick={() => setShowAlternatives(false)}><section className="modal" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">Nur für heute</span><h2>Übung ersetzen</h2></div><button className="icon-button" onClick={() => setShowAlternatives(false)}><X /></button></header><div className="alternative-list">{alternativesFor(exercise.originalExerciseId ?? exercise.exerciseId).map((item) => { const movement = movementMeta(item.movementPattern); return <button key={item.id} onClick={() => replace(item.id, item.name)}><span><strong>{item.name}</strong><small className="exercise-meta-line">{item.equipment.join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></small></span><ChevronRight /></button>; })}</div></section></div>}
 
-      {showExercisePicker && <div className="modal-backdrop" onClick={() => setShowExercisePicker(false)}><section className="modal exercise-picker" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">Freie Reihenfolge</span><h2>Was ist gerade frei?</h2><p>Wechsle zu einer offenen Übung. Deine bisherigen Sätze bleiben gespeichert.</p></div><button className="icon-button" onClick={() => setShowExercisePicker(false)}><X /></button></header><div className="exercise-queue">{session.exercises.map((item, index) => { const isCurrent = item.id === exercise.id; const isDone = item.status === "completed"; const movement = sessionMovement(item); return <button key={item.id} disabled={isCurrent || isDone} className={`${isCurrent ? "current" : ""} ${isDone ? "done" : ""}`} onClick={() => chooseExercise(item.id)}><span className="queue-number">{isDone ? <Check size={16} /> : index + 1}</span><span className="queue-copy"><strong>{item.name}</strong><span className="queue-muscles">{item.primaryMuscles.join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category} · {movement.label}</span></span><small>{item.sets.length} von {item.targetSets} Sätzen · {isCurrent ? "Gerade aktiv" : isDone ? "Abgeschlossen" : item.status === "skipped" ? "Übersprungen" : "Offen"}</small></span>{!isCurrent && !isDone && <span className="queue-action">Jetzt <ChevronRight size={16} /></span>}</button>; })}</div></section></div>}
+      {showExercisePicker && <div className="modal-backdrop" onClick={() => setShowExercisePicker(false)}><section className="modal exercise-picker" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">Freie Reihenfolge</span><h2>Was ist gerade frei?</h2><p>Wechsle zu einer offenen Übung oder ergänze spontan einen Zusatzsatz. Deine bisherigen Sätze bleiben gespeichert.</p></div><button className="icon-button" onClick={() => setShowExercisePicker(false)}><X /></button></header><div className="exercise-queue">{session.exercises.map((item, index) => { const isCurrent = item.id === exercise.id; const isDone = item.status === "completed"; const movement = sessionMovement(item); return <button key={item.id} disabled={isCurrent} className={`${isCurrent ? "current" : ""} ${isDone ? "done" : ""}`} onClick={() => chooseExercise(item.id)}><span className="queue-number">{isDone ? <Check size={16} /> : index + 1}</span><span className="queue-copy"><strong>{item.name}</strong><span className="queue-muscles">{item.primaryMuscles.join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category} · {movement.label}</span></span><small>{item.sets.length} von {item.targetSets} Sätzen · {isCurrent ? "Gerade aktiv" : isDone ? "Abgeschlossen" : item.status === "skipped" ? "Übersprungen" : "Offen"}</small></span>{!isCurrent && <span className="queue-action">{isDone ? "Zusatzsatz" : "Jetzt"} <ChevronRight size={16} /></span>}</button>; })}</div></section></div>}
 
       {allHandled && <div className="completion-dock"><div><Sparkles /><span><strong>Einheit geschafft</strong><small>{completedSets} Sätze protokolliert</small></span></div><button className="primary-button" onClick={finish}>Training abschließen</button></div>}
     </div>
