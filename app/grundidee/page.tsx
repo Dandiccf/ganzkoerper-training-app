@@ -13,6 +13,7 @@ import {
   Sparkles,
   Timer,
   TrendingUp,
+  Youtube,
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -71,6 +72,19 @@ export default function ConceptPage() {
             <div className="rotation-ring"><RotateCcw size={44} /></div>
             {days.map((day) => <span key={day.code} className={`orbit-day orbit-${day.code.toLowerCase()}`} style={{ background: day.color }}>{day.code}</span>)}
             <small>Belasten · erholen · steigern</small>
+          </div>
+        </section>
+
+        <section className="concept-origin" aria-labelledby="concept-origin-title">
+          <span className="origin-icon"><Youtube /></span>
+          <div>
+            <span className="eyebrow">Konzeptionelle Quelle</span>
+            <h2 id="concept-origin-title">Die Idee begann mit einem Video.</h2>
+            <p>
+              Zentrale Grundlage für dieses Trainingsprogramm ist das Video <strong>„MEHR MUSKELN in WENIGER ZEIT (kompletter Trainingsplan)“</strong> von Dennis Ratano.
+              Die App überführt die dort vermittelte Grundidee in eine flexible A/B/C-Rotation mit Trainingsprotokoll, freier Übungsreihenfolge und anpassbarer Satzanzahl.
+            </p>
+            <a href="https://www.youtube.com/watch?v=I7UtSo0NTaA" target="_blank" rel="noreferrer"><Youtube size={18} /> Originalvideo auf YouTube ansehen <ExternalLink size={16} /></a>
           </div>
         </section>
 
@@ -200,9 +214,9 @@ export default function ConceptPage() {
         <section className="concept-sources">
           <span className="eyebrow">Hintergrund & Quellen</span>
           <h2>Woher die Idee kommt</h2>
-          <p>Die konkrete Rotation wurde aus den archivierten Originalvorlagen dieses Projekts entwickelt und durch folgende Quellen eingeordnet.</p>
+          <p>Die konzeptionelle Basis bildet Dennis Ratanos Video. Übungsauswahl und Ausgestaltung wurden anhand der archivierten Originalvorlagen dieses Projekts konkretisiert und durch wissenschaftliche Übersichtsarbeiten eingeordnet.</p>
           <div className="source-links">
-            <a href="https://youtu.be/I7UtSo0NTaA?si=64tkHbkw3-qBR6lt" target="_blank" rel="noreferrer"><span><strong>Mehr Muskeln in weniger Zeit</strong><small>Video von Dennis Ratano · konzeptionelle Inspiration</small></span><ExternalLink /></a>
+            <a href="https://www.youtube.com/watch?v=I7UtSo0NTaA" target="_blank" rel="noreferrer"><span><strong>MEHR MUSKELN in WENIGER ZEIT</strong><small>Video von Dennis Ratano · zentrale konzeptionelle Grundlage</small></span><ExternalLink /></a>
             <a href="https://pubmed.ncbi.nlm.nih.gov/30558493/" target="_blank" rel="noreferrer"><span><strong>Trainingsfrequenz und Hypertrophie</strong><small>Systematische Übersichtsarbeit und Meta-Analyse</small></span><ExternalLink /></a>
             <a href="https://pubmed.ncbi.nlm.nih.gov/36334240/" target="_blank" rel="noreferrer"><span><strong>Nähe zum Muskelversagen</strong><small>Systematische Übersichtsarbeit mit Meta-Analyse</small></span><ExternalLink /></a>
           </div>
