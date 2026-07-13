@@ -1,10 +1,22 @@
 {
   "name": "ganzkoerper-training-app",
   "version": "0.1.0",
+  "description": "Local-first PWA für eine flexible Ganzkörper-A/B/C-Trainingsrotation.",
+  "license": "MIT",
+  "homepage": "https://kraftwerk-training.pages.dev/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dandiccf/ganzkoerper-training-app.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Dandiccf/ganzkoerper-training-app/issues"
+  },
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:cloudflare": "CLOUDFLARE_PAGES=1 next build",
+    "deploy:cloudflare": "npm run build:cloudflare && npx --yes wrangler@3.114.15 pages deploy out --project-name kraftwerk-training --branch main",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -27,6 +39,7 @@
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "16.2.10",
+    "fake-indexeddb": "^6.2.5",
     "typescript": "6.0.3",
     "vitest": "^3.2.4"
   },
