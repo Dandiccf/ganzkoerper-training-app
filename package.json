@@ -1,6 +1,16 @@
 {
   "name": "ganzkoerper-training-app",
   "version": "0.1.0",
+  "description": "Local-first PWA für eine flexible Ganzkörper-A/B/C-Trainingsrotation.",
+  "license": "MIT",
+  "homepage": "https://kraftwerk-training.pages.dev/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dandiccf/ganzkoerper-training-app.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Dandiccf/ganzkoerper-training-app/issues"
+  },
   "private": true,
   "scripts": {
     "dev": "next dev",
