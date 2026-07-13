@@ -24,6 +24,7 @@ npm run check
 
 - Trainingskonzept A/B/C ist definiert.
 - Responsive App-Shell für Mobilgeräte, Tablet und Desktop.
+- Automatische Browser-Spracherkennung mit dauerhaft auswählbarem Deutsch/Englisch-Modus.
 - Heute-Ansicht mit automatischer A/B/C-Rotation.
 - Vollständiger Planbrowser für alle 27 Übungen.
 - Aktiver Trainingsmodus mit Last, Wiederholungen und RIR.

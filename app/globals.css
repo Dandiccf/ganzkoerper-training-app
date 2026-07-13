@@ -348,7 +348,12 @@ h1, h2, h3, .brand strong { font-family: "Arial Narrow", "Helvetica Neue", Arial
 .nav-items button { border-radius: 9px; }
 .nav-items button:hover { background: #1a1e1b; color: white; }
 .nav-items button.active { background: var(--green); color: #0b0d0c; box-shadow: 0 12px 30px rgba(200,255,61,.12); }
-.sidebar-foot { color: var(--muted); }
+.sidebar-language { margin-top: auto; padding: 18px 10px 0; border-top: 1px solid var(--line); }
+.sidebar-foot { margin-top: 12px; color: var(--muted); }
+.language-switcher { min-height: 40px; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.language-switcher select { min-width: 72px; border: 1px solid #3d4636; border-radius: 8px; background: #111410; color: var(--green); padding: 7px 26px 7px 9px; cursor: pointer; font-weight: 900; }
+.language-switcher.compact { width: fit-content; min-height: 36px; }
+.language-switcher.compact select { min-width: 58px; max-width: 64px; padding-left: 7px; }
 
 .page-header h1 { line-height: .94; }
 .page-header p { max-width: 650px; }
@@ -393,7 +398,8 @@ h1, h2, h3, .brand strong { font-family: "Arial Narrow", "Helvetica Neue", Arial
 .movement-chip.isolation { background: #2d2333; color: #c9a2dc; }
 
 .workout-shell { background-color: var(--paper); background-image: radial-gradient(circle at 50% 15%, rgba(200,255,61,.055), transparent 28rem); }
-.workout-header { background: rgba(8,10,9,.97); border-bottom: 1px solid var(--line); }
+.workout-header { grid-template-columns: 150px 1fr 120px; background: rgba(8,10,9,.97); border-bottom: 1px solid var(--line); }
+.workout-header-tools { display: flex; align-items: center; gap: 8px; }
 .finish-link { color: var(--green); }
 .progress-track { background: #222622; height: 5px; }
 .progress-track span { background: var(--green); box-shadow: 0 0 14px rgba(200,255,61,.55); }
@@ -433,9 +439,12 @@ h1, h2, h3, .brand strong { font-family: "Arial Narrow", "Helvetica Neue", Arial
 .session-detail, .setting-row, .data-card, .button-row button, .danger-button { background: var(--surface); }
 .segmented { background: #0f1110; }
 .segmented button.active { background: var(--green); color: #0b0d0c; box-shadow: none; }
+.setting-row + .setting-row { border-top: 0; }
+.language-setting .language-switcher > span { display: none; }
 
 .concept-shell { background: transparent; }
 .concept-topbar { background: rgba(10,12,11,.9); }
+.concept-topbar-actions { display: flex; align-items: center; gap: 18px; }
 .concept-brand { color: var(--ink); font-family: "Arial Narrow", "Helvetica Neue", Arial, sans-serif; font-weight: 900; text-transform: uppercase; letter-spacing: -.025em; }
 .concept-brand > span { background: var(--green); color: #0b0d0c; border-radius: 8px; }
 .concept-hero { background: linear-gradient(135deg, #191d19, #0d0f0e); border: 1px solid #30362f; box-shadow: var(--shadow); }
@@ -516,7 +525,10 @@ h1, h2, h3, .brand strong { font-family: "Arial Narrow", "Helvetica Neue", Arial
   .exercise-main .movement-chip { padding: 2px 5px; font-size: 8px; }
   .exercise-main .exercise-target strong { font-size: 11px; }
   .exercise-detail { grid-column: 1 / -1; padding: 8px 10px 15px; }
-  .workout-header { padding: 0 12px; grid-template-columns: 50px 1fr 84px; }
+  .workout-header { padding: 0 12px; grid-template-columns: 98px 1fr 84px; }
+  .workout-header-tools { gap: 4px; }
+  .workout-header-tools .icon-button { width: 38px; height: 38px; }
+  .workout-header-tools .language-switcher.compact select { min-width: 50px; max-width: 52px; padding-left: 5px; padding-right: 18px; font-size: 9px; }
   .workout-progress-button { padding: 6px; }
   .workout-progress-button > span { font-size: 8px; }
   .workout-progress-button > strong { font-size: 11px; }
@@ -542,6 +554,8 @@ h1, h2, h3, .brand strong { font-family: "Arial Narrow", "Helvetica Neue", Arial
   .concept-brand { font-size: 18px; }
   .concept-brand > span { width: 35px; height: 35px; }
   .back-link { font-size: 11px; }
+  .concept-topbar-actions { gap: 8px; }
+  .concept-topbar-actions .language-switcher.compact select { min-width: 50px; max-width: 52px; padding-left: 5px; padding-right: 18px; font-size: 9px; }
   .concept-page { width: calc(100% - 24px); }
   .concept-hero { min-height: 0; border-radius: 21px; }
   .concept-hero-copy { padding: 38px 24px 30px; }
