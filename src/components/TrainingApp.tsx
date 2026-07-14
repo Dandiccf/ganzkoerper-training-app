@@ -128,28 +128,20 @@ function useDialogAccessibility(open: boolean, onClose: () => void) {
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     };
     document.addEventListener("keydown", onKeyDown);
-    const scrollY = window.scrollY;
-    const oldBodyStyles = {
-      overflow: document.body.style.overflow,
-      position: document.body.style.position,
-      top: document.body.style.top,
-      left: document.body.style.left,
-      right: document.body.style.right,
-      width: document.body.style.width,
+    const onTouchMove = (event: TouchEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node) || !dialog?.contains(target)) event.preventDefault();
     };
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+    const oldBodyOverflow = document.body.style.overflow;
     const oldRootOverflow = document.documentElement.style.overflow;
     document.documentElement.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.left = "0";
-    document.body.style.right = "0";
-    document.body.style.width = "100%";
     return () => {
       document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("touchmove", onTouchMove);
       document.documentElement.style.overflow = oldRootOverflow;
-      Object.assign(document.body.style, oldBodyStyles);
-      window.scrollTo(0, scrollY);
+      document.body.style.overflow = oldBodyOverflow;
       previous?.focus();
     };
   }, [onClose, open]);
@@ -202,9 +194,10 @@ export function TrainingApp() {
         window.location.reload();
       };
       navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
-      void navigator.serviceWorker.register("/sw.js").then((registration) => {
+      void navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).then((registration) => {
+        void registration.update();
         void navigator.serviceWorker.ready.then(() => setOfflineReady(true));
-        if (registration.waiting) setUpdateAvailable(true);
+        if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });
         registration.addEventListener("updatefound", () => {
           const worker = registration.installing;
           worker?.addEventListener("statechange", () => {
