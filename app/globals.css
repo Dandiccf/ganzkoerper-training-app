@@ -211,6 +211,9 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .completion-dock small { color: rgba(255,255,255,.55); margin-top: 3px; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 100; width: 100%; height: 100vh; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; background: rgba(20,30,26,.6); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); touch-action: pan-y; isolation: isolate; }
 .modal { width: min(570px, 100%); max-height: calc(100vh - 40px); max-height: calc(100dvh - max(40px, env(safe-area-inset-top)) - max(40px, env(safe-area-inset-bottom))); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; background: var(--surface); border-radius: 22px; padding: 26px; box-shadow: 0 30px 80px rgba(0,0,0,.3); touch-action: pan-y; }
+.mobile-dialog-page { width: 100%; min-height: 100vh; min-height: 100svh; padding: max(20px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); background: var(--surface); color: var(--ink); }
+.mobile-dialog-page .modal { width: 100%; max-height: none; overflow: visible; padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.mobile-dialog-page .modal > header { position: sticky; z-index: 2; top: 0; padding: 4px 0 16px; background: var(--surface); }
 .modal header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px; }
 .modal h2 { font: 500 30px Georgia, serif; margin: 7px 0 0; }
 .modal .icon-button { background: #eeeae2; }

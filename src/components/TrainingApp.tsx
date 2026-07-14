@@ -30,7 +30,7 @@ import {
   Youtube,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   activateSessionExercise,
@@ -104,6 +104,22 @@ function ModalLayer({ children, onDismiss }: { children: ReactNode; onDismiss: (
     <div className="modal-backdrop" onClick={(event) => { if (event.target === event.currentTarget) onDismiss(); }}>{children}</div>,
     document.body,
   );
+}
+
+function useMobileViewport() {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 560px)");
+    const update = () => setMobile(query.matches);
+    update();
+    if (query.addEventListener) query.addEventListener("change", update);
+    else query.addListener(update);
+    return () => {
+      if (query.removeEventListener) query.removeEventListener("change", update);
+      else query.removeListener(update);
+    };
+  }, []);
+  return mobile;
 }
 
 function useDialogAccessibility(open: boolean, onClose: () => void) {
@@ -514,6 +530,7 @@ function PlanView({
 
 function WorkoutView({ session, sessions, settings, onChange }: { session: WorkoutSession; sessions: WorkoutSession[]; settings: AppSettings; onChange: () => Promise<void> }) {
   const { locale, t } = useI18n();
+  const mobileViewport = useMobileViewport();
   const currentIndex = Math.max(0, session.exercises.findIndex((exercise) => exercise.status === "active"));
   const exercise = session.exercises[currentIndex];
   const exerciseName = localizeExerciseName(exercise.exerciseId, exercise.name, locale);
@@ -536,8 +553,23 @@ function WorkoutView({ session, sessions, settings, onChange }: { session: Worko
   const [saveError, setSaveError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [timerDone, setTimerDone] = useState(false);
+  const mobileDialogScroll = useRef(0);
   const closeWorkoutDialog = useCallback(() => { setShowAlternatives(false); setShowExercisePicker(false); setEditingSet(null); }, [setEditingSet, setShowAlternatives, setShowExercisePicker]);
-  useDialogAccessibility(showAlternatives || showExercisePicker || Boolean(editingSet), closeWorkoutDialog);
+  useDialogAccessibility((!mobileViewport && (showAlternatives || showExercisePicker)) || Boolean(editingSet), closeWorkoutDialog);
+
+  useEffect(() => {
+    if (!mobileViewport || (!showAlternatives && !showExercisePicker)) return;
+    mobileDialogScroll.current = window.scrollY;
+    const openFrame = window.requestAnimationFrame(() => {
+      window.scrollTo(0, 0);
+      document.querySelector<HTMLElement>(".mobile-dialog-page .icon-button")?.focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(openFrame);
+      const restoreTo = mobileDialogScroll.current;
+      window.requestAnimationFrame(() => window.scrollTo(0, restoreTo));
+    };
+  }, [mobileViewport, showAlternatives, showExercisePicker]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -735,6 +767,12 @@ function WorkoutView({ session, sessions, settings, onChange }: { session: Worko
   }
 
   const allHandled = session.exercises.every((item) => item.status === "completed" || item.status === "skipped");
+  const alternativesPanel = <section className="modal" role="dialog" aria-modal="true" aria-labelledby="workout-alternatives-title" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("workout.onlyToday")}</span><h2 id="workout-alternatives-title">{t("workout.replace")}</h2></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setShowAlternatives(false)}><X /></button></header><div className="alternative-list">{alternativesFor(exercise.originalExerciseId ?? exercise.exerciseId).map((item) => { const movement = localizeMovement(item.movementPattern, movementMeta(item.movementPattern), locale); return <button key={item.id} onClick={() => replace(item.id, item.name)}><span><strong>{localizeExerciseName(item.id, item.name, locale)}</strong><small className="exercise-meta-line">{localizeEquipment(item.equipment, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></small></span><ChevronRight /></button>; })}</div></section>;
+  const exercisePickerPanel = <section className="modal exercise-picker" role="dialog" aria-modal="true" aria-labelledby="exercise-picker-title" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("workout.freeOrder")}</span><h2 id="exercise-picker-title">{t("workout.freeTitle")}</h2><p>{t("workout.freeHelp")}</p></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setShowExercisePicker(false)}><X /></button></header><div className="exercise-queue">{session.exercises.map((item, index) => { const isCurrent = item.id === exercise.id; const isDone = item.status === "completed"; const movement = sessionMovement(item, locale); return <button key={item.id} disabled={isCurrent} className={`${isCurrent ? "current" : ""} ${isDone ? "done" : ""}`} onClick={() => chooseExercise(item.id)}><span className="queue-number">{isDone ? <Check size={16} /> : index + 1}</span><span className="queue-copy"><strong>{localizeExerciseName(item.exerciseId, item.name, locale)}</strong><span className="queue-muscles">{localizeMuscles(item.primaryMuscles, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category} · {movement.label}</span></span><small>{item.sets.length} {t("common.of")} {item.targetSets} {t(item.targetSets === 1 ? "common.setSingular" : "common.sets")} · {isCurrent ? t("workout.active") : isDone ? t("workout.completed") : item.status === "skipped" ? t("workout.skipped") : t("workout.open")}</small></span>{!isCurrent && <span className="queue-action">{isDone ? t("workout.extraSet") : t("workout.now")} <ChevronRight size={16} /></span>}</button>; })}</div></section>;
+
+  if (mobileViewport && showAlternatives) return <main className="mobile-dialog-page">{alternativesPanel}</main>;
+  if (mobileViewport && showExercisePicker) return <main className="mobile-dialog-page">{exercisePickerPanel}</main>;
+
   return (
     <div className="workout-shell">
       <header className="workout-header">
@@ -776,9 +814,9 @@ function WorkoutView({ session, sessions, settings, onChange }: { session: Worko
       {timerEnd && <div className="timer-bar" role="timer" aria-live="polite"><TimerReset size={22} /><div><span>{t("common.rest")}</span><strong>{formatDuration(remaining)}</strong></div><button onClick={() => changeTimer(15_000)}>+15s</button><button onClick={() => changeTimer(-15_000)}>−15s</button><button onClick={() => changeTimer(null)}>{t("common.skip")}</button></div>}
       {timerDone && <div className="timer-done" role="status"><Check size={18} /><span>{t("workout.timerDone")}</span><button aria-label={t("common.close")} onClick={() => setTimerDone(false)}><X size={15} /></button></div>}
 
-      {showAlternatives && <ModalLayer onDismiss={() => setShowAlternatives(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="workout-alternatives-title" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("workout.onlyToday")}</span><h2 id="workout-alternatives-title">{t("workout.replace")}</h2></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setShowAlternatives(false)}><X /></button></header><div className="alternative-list">{alternativesFor(exercise.originalExerciseId ?? exercise.exerciseId).map((item) => { const movement = localizeMovement(item.movementPattern, movementMeta(item.movementPattern), locale); return <button key={item.id} onClick={() => replace(item.id, item.name)}><span><strong>{localizeExerciseName(item.id, item.name, locale)}</strong><small className="exercise-meta-line">{localizeEquipment(item.equipment, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category}</span></small></span><ChevronRight /></button>; })}</div></section></ModalLayer>}
+      {!mobileViewport && showAlternatives && <ModalLayer onDismiss={() => setShowAlternatives(false)}>{alternativesPanel}</ModalLayer>}
 
-      {showExercisePicker && <ModalLayer onDismiss={() => setShowExercisePicker(false)}><section className="modal exercise-picker" role="dialog" aria-modal="true" aria-labelledby="exercise-picker-title" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("workout.freeOrder")}</span><h2 id="exercise-picker-title">{t("workout.freeTitle")}</h2><p>{t("workout.freeHelp")}</p></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setShowExercisePicker(false)}><X /></button></header><div className="exercise-queue">{session.exercises.map((item, index) => { const isCurrent = item.id === exercise.id; const isDone = item.status === "completed"; const movement = sessionMovement(item, locale); return <button key={item.id} disabled={isCurrent} className={`${isCurrent ? "current" : ""} ${isDone ? "done" : ""}`} onClick={() => chooseExercise(item.id)}><span className="queue-number">{isDone ? <Check size={16} /> : index + 1}</span><span className="queue-copy"><strong>{localizeExerciseName(item.exerciseId, item.name, locale)}</strong><span className="queue-muscles">{localizeMuscles(item.primaryMuscles, locale).join(" · ")}<span className={`movement-chip ${movement.tone}`}>{movement.category} · {movement.label}</span></span><small>{item.sets.length} {t("common.of")} {item.targetSets} {t(item.targetSets === 1 ? "common.setSingular" : "common.sets")} · {isCurrent ? t("workout.active") : isDone ? t("workout.completed") : item.status === "skipped" ? t("workout.skipped") : t("workout.open")}</small></span>{!isCurrent && <span className="queue-action">{isDone ? t("workout.extraSet") : t("workout.now")} <ChevronRight size={16} /></span>}</button>; })}</div></section></ModalLayer>}
+      {!mobileViewport && showExercisePicker && <ModalLayer onDismiss={() => setShowExercisePicker(false)}>{exercisePickerPanel}</ModalLayer>}
 
       {editingSet && <ModalLayer onDismiss={() => setEditingSet(null)}><section className="modal set-editor-modal" role="dialog" aria-modal="true" aria-labelledby="set-editor-title" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("workout.correctSet")}</span><h2 id="set-editor-title">{t("workout.editSet")}</h2></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setEditingSet(null)}><X /></button></header><div className="number-fields"><NumberField label={t("workout.weight")} value={editingSet.load} suffix={settings.unit} min={0} step={settings.weightStep} onChange={(value) => setEditingSet({ ...editingSet, load: value })} /><NumberField label={t("workout.repetitions")} value={editingSet.reps} suffix={t("workout.repsShort")} min={1} step={1} onChange={(value) => setEditingSet({ ...editingSet, reps: value })} /></div><div className="rir-entry"><span>RIR</span><div>{[0, 1, 2, 3, 4].map((value) => <button key={value} className={editingSet.rir === value ? "active" : ""} onClick={() => setEditingSet({ ...editingSet, rir: value })}>{value}{value === 4 ? "+" : ""}</button>)}</div></div><button className="primary-button wide" onClick={saveEditedSet}><Check size={18} /> {t("common.save")}</button></section></ModalLayer>}
 

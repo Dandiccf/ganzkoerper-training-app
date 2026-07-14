@@ -1,4 +1,4 @@
-const CACHE = "kraftwerk-v11";
+const CACHE = "kraftwerk-v12";
 const MUSCLE_IMAGES = ["a", "b", "c"].flatMap((day) =>
   Array.from({ length: 9 }, (_, index) => `/muscle-groups/${day}-${index + 1}.png`)
 );
