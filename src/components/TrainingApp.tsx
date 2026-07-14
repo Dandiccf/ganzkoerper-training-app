@@ -774,9 +774,9 @@ function WorkoutView({ session, sessions, settings, onChange }: { session: Worko
   if (mobileViewport && showExercisePicker) return <main className="mobile-dialog-page">{exercisePickerPanel}</main>;
 
   return (
-    <div className="workout-shell">
+    <div className={`workout-shell${timerEnd || timerDone ? " timer-visible" : ""}`}>
       <header className="workout-header">
-        <div className="workout-header-tools"><button className="icon-button" onClick={pauseWorkout} aria-label={t("workout.pause")}><Pause size={20} /></button><LanguageSwitcher compact /></div>
+        <div className="workout-header-tools"><button className="icon-button" onClick={pauseWorkout} aria-label={t("workout.pause")}><Pause size={20} /></button></div>
         <button className="workout-progress-button" onClick={() => setShowExercisePicker(true)}><span>{t("common.day").toUpperCase()} {session.dayCode} · {localizedDay.name}</span><strong><ListChecks size={15} /> {t("workout.exercise")} {currentIndex + 1} {t("common.of")} {session.exercises.length}</strong></button>
         <button className="finish-link" onClick={finish}>{allHandled ? t("workout.finish") : t("workout.finishEarly")}</button>
       </header>
@@ -797,17 +797,23 @@ function WorkoutView({ session, sessions, settings, onChange }: { session: Worko
         </section>
 
         <section className="set-entry">
-          <div className="target-box"><span>{t("workout.target")}</span><strong>{exercise.repMin}–{exercise.repMax} {t("workout.repsShort")}</strong><small>RIR {exercise.targetRirMin}–{exercise.targetRirMax}</small></div>
-          <div className="session-set-control"><span><strong>{t("workout.workingSets")}</strong><small>{t("workout.sessionOnly")}</small></span><div className="set-stepper"><button aria-label={t("workout.removeSet")} disabled={exercise.targetSets <= Math.max(1, exercise.sets.length)} onClick={() => adjustTargetSets(-1)}>−</button><strong>{exercise.targetSets}</strong><button aria-label={t("workout.addSet")} onClick={() => adjustTargetSets(1)}>+</button></div></div>
-          {previous && <p className="previous">{t("workout.lastTime")} {previous.sets.map((set) => `${set.load === null ? t("common.bodyweight") : `${displayLoad(set.load, settings.unit)} ${settings.unit}`} × ${set.reps}`).join(" · ")}</p>}
-          <div className="number-fields">
-            <NumberField label={t("workout.weight")} value={load} suffix={settings.unit} min={0} step={settings.weightStep} onChange={(value) => { setLoad(value); persistDraft(value, reps, rir); }} />
-            <NumberField label={t("workout.repetitions")} value={reps} suffix={t("workout.repsShort")} min={1} step={1} onChange={(value) => { setReps(value); persistDraft(load, value, rir); }} />
+          <div className="set-entry-setup">
+            <div className="target-box"><span>{t("workout.target")}</span><strong>{exercise.repMin}–{exercise.repMax} {t("workout.repsShort")}</strong><small>RIR {exercise.targetRirMin}–{exercise.targetRirMax}</small></div>
+            <div className="session-set-control"><span><strong>{t("workout.workingSets")}</strong><small>{t("workout.sessionOnly")}</small></span><div className="set-stepper"><button aria-label={t("workout.removeSet")} disabled={exercise.targetSets <= Math.max(1, exercise.sets.length)} onClick={() => adjustTargetSets(-1)}>−</button><strong>{exercise.targetSets}</strong><button aria-label={t("workout.addSet")} onClick={() => adjustTargetSets(1)}>+</button></div></div>
+            {previous && <p className="previous">{t("workout.lastTime")} {previous.sets.map((set) => `${set.load === null ? t("common.bodyweight") : `${displayLoad(set.load, settings.unit)} ${settings.unit}`} × ${set.reps}`).join(" · ")}</p>}
+            {exercise.sets.length > 0 && <div className="logged-sets">{exercise.sets.map((set) => <div key={set.id}><span><Check size={15} /> {t("common.set")} {set.setNumber}: {set.load !== null ? `${displayLoad(set.load, settings.unit)} ${settings.unit}` : t("common.bodyweight")} × {set.reps}, RIR {set.rir ?? "–"}</span><span className="logged-set-actions"><button aria-label={t("workout.editSet")} onClick={() => setEditingSet({ id: set.id, load: displayLoad(set.load, settings.unit) ?? 0, reps: set.reps, rir: set.rir })}><Pencil size={15} /></button><button aria-label={t("workout.deleteSet")} onClick={() => removeSet(set.id)}><Trash2 size={15} /></button></span></div>)}</div>}
           </div>
-          <div className="rir-entry"><span>RIR <small>{t("workout.rirHelp")}</small></span><div>{[0, 1, 2, 3, 4].map((value) => <button key={value} className={rir === value ? "active" : ""} onClick={() => { setRir(value); persistDraft(load, reps, value); }}>{value}{value === 4 ? "+" : ""}</button>)}</div></div>
-          <button className="primary-button wide" disabled={submitting || reps < 1 || load < 0} onClick={completeSet}><Check size={20} /> {submitting ? t("workout.saving") : t("workout.completeSet")}</button>
-          <button className="skip-button" onClick={skipExercise}><SkipForward size={17} /> {t("workout.skipExercise")}</button>
-          {exercise.sets.length > 0 && <div className="logged-sets">{exercise.sets.map((set) => <div key={set.id}><span><Check size={15} /> {t("common.set")} {set.setNumber}: {set.load !== null ? `${displayLoad(set.load, settings.unit)} ${settings.unit}` : t("common.bodyweight")} × {set.reps}, RIR {set.rir ?? "–"}</span><span className="logged-set-actions"><button aria-label={t("workout.editSet")} onClick={() => setEditingSet({ id: set.id, load: displayLoad(set.load, settings.unit) ?? 0, reps: set.reps, rir: set.rir })}><Pencil size={15} /></button><button aria-label={t("workout.deleteSet")} onClick={() => removeSet(set.id)}><Trash2 size={15} /></button></span></div>)}</div>}
+          <div className="set-entry-controls">
+            <div className="number-fields">
+              <NumberField label={t("workout.weight")} value={load} suffix={settings.unit} min={0} step={settings.weightStep} onChange={(value) => { setLoad(value); persistDraft(value, reps, rir); }} />
+              <NumberField label={t("workout.repetitions")} value={reps} suffix={t("workout.repsShort")} min={1} step={1} onChange={(value) => { setReps(value); persistDraft(load, value, rir); }} />
+            </div>
+            <div className="rir-entry"><span>RIR <small>{t("workout.rirHelp")}</small></span><div>{[0, 1, 2, 3, 4].map((value) => <button key={value} className={rir === value ? "active" : ""} onClick={() => { setRir(value); persistDraft(load, reps, value); }}>{value}{value === 4 ? "+" : ""}</button>)}</div></div>
+          </div>
+          <div className="set-entry-actions">
+            <button className="primary-button wide" disabled={submitting || reps < 1 || load < 0} onClick={completeSet}><Check size={20} /> {submitting ? t("workout.saving") : t("workout.completeSet")}</button>
+            <button className="skip-button" onClick={skipExercise}><SkipForward size={17} /> {t("workout.skipExercise")}</button>
+          </div>
         </section>
       </main>
 
