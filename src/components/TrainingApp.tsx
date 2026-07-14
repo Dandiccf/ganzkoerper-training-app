@@ -537,7 +537,9 @@ function PlanView({
 function WorkoutView({ session, sessions, settings, onChange }: { session: WorkoutSession; sessions: WorkoutSession[]; settings: AppSettings; onChange: () => Promise<void> }) {
   const { locale, t } = useI18n();
   const mobileViewport = useMobileViewport();
-  const currentIndex = Math.max(0, session.exercises.findIndex((exercise) => exercise.status === "active"));
+  const activeIndex = session.exercises.findIndex((exercise) => exercise.status === "active");
+  const lastCompletedIndex = session.exercises.reduce((last, item, index) => item.status === "completed" ? index : last, -1);
+  const currentIndex = activeIndex >= 0 ? activeIndex : Math.max(0, lastCompletedIndex);
   const exercise = session.exercises[currentIndex];
   const exerciseName = localizeExerciseName(exercise.exerciseId, exercise.name, locale);
   const localizedDay = localizeDay(session.dayCode, { name: session.dayName, focus: session.focus }, locale);
@@ -617,9 +619,27 @@ function WorkoutView({ session, sessions, settings, onChange }: { session: Worko
     return () => window.clearInterval(interval);
   }, [exerciseName, session.id, t, timerEnd]);
 
+  useEffect(() => {
+    if (!undoSnapshot) return;
+    const timeout = window.setTimeout(() => setUndoSnapshot(null), 6_000);
+    return () => window.clearTimeout(timeout);
+  }, [undoSnapshot]);
+
+  useEffect(() => {
+    if (!timerDone) return;
+    const timeout = window.setTimeout(() => setTimerDone(false), 6_000);
+    return () => window.clearTimeout(timeout);
+  }, [timerDone]);
+
   const completedSets = session.exercises.reduce((sum, item) => sum + item.sets.length, 0);
   const totalSets = session.exercises.reduce((sum, item) => sum + item.targetSets, 0);
   const currentMovement = sessionMovement(exercise, locale);
+  const currentSetNumber = Math.min(exercise.sets.length + 1, exercise.targetSets);
+  const setLoadText = (set: { load: number | null }) => set.load === null ? t("common.bodyweight") : `${displayLoad(set.load, settings.unit)} ${settings.unit}`;
+  const latestLoggedSet = session.exercises
+    .flatMap((item) => item.sets)
+    .sort((a, b) => a.completedAt.localeCompare(b.completedAt))
+    .at(-1);
   async function update(next: WorkoutSession) {
     try {
       setSaveError(false);
@@ -647,18 +667,25 @@ function WorkoutView({ session, sessions, settings, onChange }: { session: Worko
     const next = structuredClone(session);
     const target = next.exercises[currentIndex];
     target.sets.push({ id: crypto.randomUUID(), setNumber: target.sets.length + 1, load: load ? storeLoad(load, settings.unit) : null, reps, rir, completedAt: new Date().toISOString() });
-    const end = Date.now() + target.restSeconds * 1000;
-    next.restTimerEndsAt = new Date(end).toISOString();
     next.drafts = { ...(next.drafts ?? {}), [exercise.id]: { load: load ? storeLoad(load, settings.unit) : null, reps, rir } };
-    setTimerEnd(end);
     setTimerDone(false);
     setUndoSnapshot(session);
+    let nextExercise: (typeof next.exercises)[number] | undefined;
     if (target.sets.length >= target.targetSets) {
       target.status = "completed";
-      const nextExercise = next.exercises.find((item) => item.status === "pending");
+      nextExercise = next.exercises.find((item) => item.status === "pending");
       if (nextExercise) {
         nextExercise.status = "active";
       }
+    }
+    const shouldRest = target.sets.length < target.targetSets || Boolean(nextExercise);
+    if (shouldRest) {
+      const end = Date.now() + target.restSeconds * 1000;
+      next.restTimerEndsAt = new Date(end).toISOString();
+      setTimerEnd(end);
+    } else {
+      next.restTimerEndsAt = undefined;
+      setTimerEnd(null);
     }
     await update(next);
     setSubmitting(false);
@@ -794,7 +821,7 @@ function WorkoutView({ session, sessions, settings, onChange }: { session: Worko
           <div className="workout-image-wrap">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={imageUrl(exercise.image)} alt={t("workout.imageAlt", { exercise: exerciseName })} />
-            <span>{t("common.set").toUpperCase()} {Math.min(exercise.sets.length + 1, exercise.targetSets)} / {exercise.targetSets}</span>
+            <span>{t("common.set").toUpperCase()} {currentSetNumber} / {exercise.targetSets}</span>
           </div>
           <div className="active-exercise-meta"><span>{localizeMuscles(exercise.primaryMuscles, locale).join(" · ")}</span><span className={`movement-chip ${currentMovement.tone}`}>{currentMovement.category} · {currentMovement.label}</span></div>
           <h1>{exerciseName}</h1>
@@ -804,27 +831,46 @@ function WorkoutView({ session, sessions, settings, onChange }: { session: Worko
 
         <section className="set-entry">
           <div className="set-entry-setup">
-            <div className="target-box"><span>{t("workout.target")}</span><strong>{exercise.repMin}–{exercise.repMax} {t("workout.repsShort")}</strong><small>RIR {exercise.targetRirMin}–{exercise.targetRirMax}</small></div>
-            <div className="session-set-control"><span><strong>{t("workout.workingSets")}</strong><small>{t("workout.sessionOnly")}</small></span><div className="set-stepper"><button aria-label={t("workout.removeSet")} disabled={exercise.targetSets <= Math.max(1, exercise.sets.length)} onClick={() => adjustTargetSets(-1)}>−</button><strong>{exercise.targetSets}</strong><button aria-label={t("workout.addSet")} onClick={() => adjustTargetSets(1)}>+</button></div></div>
-            {previous && <p className="previous">{t("workout.lastTime")} {previous.sets.map((set) => `${set.load === null ? t("common.bodyweight") : `${displayLoad(set.load, settings.unit)} ${settings.unit}`} × ${set.reps}`).join(" · ")}</p>}
-            {exercise.sets.length > 0 && <div className="logged-sets">{exercise.sets.map((set) => <div key={set.id}><span><Check size={15} /> {t("common.set")} {set.setNumber}: {set.load !== null ? `${displayLoad(set.load, settings.unit)} ${settings.unit}` : t("common.bodyweight")} × {set.reps}, RIR {set.rir ?? "–"}</span><span className="logged-set-actions"><button aria-label={t("workout.editSet")} onClick={() => setEditingSet({ id: set.id, load: displayLoad(set.load, settings.unit) ?? 0, reps: set.reps, rir: set.rir })}><Pencil size={15} /></button><button aria-label={t("workout.deleteSet")} onClick={() => removeSet(set.id)}><Trash2 size={15} /></button></span></div>)}</div>}
+            <div className="set-prescription">
+              <div className="target-box"><span>{t("workout.target")}</span><strong>{exercise.repMin}–{exercise.repMax} {t("workout.repsShort")}</strong><small>RIR {exercise.targetRirMin}–{exercise.targetRirMax} · {exercise.restSeconds}s {t("common.rest")}</small></div>
+              <div className="session-set-control"><span><strong>{t("workout.workingSets")}</strong><small>{t("workout.sessionOnly")}</small></span><div className="set-stepper"><button aria-label={t("workout.removeSet")} disabled={exercise.targetSets <= Math.max(1, exercise.sets.length)} onClick={() => adjustTargetSets(-1)}>−</button><strong>{exercise.targetSets}</strong><button aria-label={t("workout.addSet")} onClick={() => adjustTargetSets(1)}>+</button></div></div>
+            </div>
+            <section className="set-ledger" aria-label={t("workout.setProgress")}>
+              <header><span>{t("workout.todaySets")}</span><strong>{t("workout.setsCompleted", { completed: exercise.sets.length, total: exercise.targetSets })}</strong></header>
+              <div className="set-progress-dots" aria-hidden="true">{Array.from({ length: exercise.targetSets }, (_, index) => <span key={index} className={index < exercise.sets.length ? "completed" : index === exercise.sets.length ? "current" : ""} />)}</div>
+              <div className="set-ledger-head"><span>{t("common.set")}</span><span>{t("workout.previous")}</span><span>{t("workout.today")}</span><span /></div>
+              <div className="set-ledger-body">
+                {Array.from({ length: exercise.targetSets }, (_, index) => {
+                  const logged = exercise.sets[index];
+                  const prior = previous?.sets[index];
+                  const isCurrent = !logged && index === exercise.sets.length;
+                  return <div key={logged?.id ?? `set-${index + 1}`} className={`set-ledger-row${logged ? " completed" : isCurrent ? " current" : " upcoming"}`}>
+                    <span className="set-ledger-number">{logged ? <Check size={15} /> : index + 1}</span>
+                    <span className="set-ledger-value"><small>{prior ? setLoadText(prior) : "–"}</small><strong>{prior ? `${prior.reps} ${t("workout.repsShort")}` : "–"}</strong></span>
+                    <span className="set-ledger-value current-value">{logged ? <><small>{setLoadText(logged)}</small><strong>{logged.reps} {t("workout.repsShort")} · RIR {logged.rir ?? "–"}</strong></> : isCurrent ? <><small>{t("workout.now")}</small><strong>{load ? `${load} ${settings.unit}` : t("common.bodyweight")} × {reps}</strong></> : <><small>{t("workout.open")}</small><strong>–</strong></>}</span>
+                    <span className="logged-set-actions">{logged && <><button aria-label={t("workout.editSet")} onClick={() => setEditingSet({ id: logged.id, load: displayLoad(logged.load, settings.unit) ?? 0, reps: logged.reps, rir: logged.rir })}><Pencil size={15} /></button><button aria-label={t("workout.deleteSet")} onClick={() => removeSet(logged.id)}><Trash2 size={15} /></button></>}</span>
+                  </div>;
+                })}
+              </div>
+            </section>
           </div>
           <div className="set-entry-controls">
+            <div className="current-set-heading"><span>{t("workout.currentSet")}</span><strong>{t("common.set")} {currentSetNumber}</strong></div>
             <div className="number-fields">
               <NumberField label={t("workout.weight")} value={load} suffix={settings.unit} min={0} step={settings.weightStep} onChange={(value) => { setLoad(value); persistDraft(value, reps, rir); }} />
               <NumberField label={t("workout.repetitions")} value={reps} suffix={t("workout.repsShort")} min={1} step={1} onChange={(value) => { setReps(value); persistDraft(load, value, rir); }} />
             </div>
             <div className="rir-entry"><span>RIR <small>{t("workout.rirHelp")}</small></span><div>{[0, 1, 2, 3, 4].map((value) => <button key={value} className={rir === value ? "active" : ""} onClick={() => { setRir(value); persistDraft(load, reps, value); }}>{value}{value === 4 ? "+" : ""}</button>)}</div></div>
           </div>
-          <div className="set-entry-actions">
-            <button className="primary-button wide" disabled={submitting || reps < 1 || load < 0} onClick={completeSet}><Check size={20} /> {submitting ? t("workout.saving") : t("workout.completeSet")}</button>
-            <button className="skip-button" onClick={skipExercise}><SkipForward size={17} /> {t("workout.skipExercise")}</button>
-          </div>
         </section>
       </main>
 
-      {timerEnd && <div className="timer-bar" role="timer" aria-live="polite"><TimerReset size={22} /><div><span>{t("common.rest")}</span><strong>{formatDuration(remaining)}</strong></div><button onClick={() => changeTimer(15_000)}>+15s</button><button onClick={() => changeTimer(-15_000)}>−15s</button><button onClick={() => changeTimer(null)}>{t("common.skip")}</button></div>}
-      {timerDone && <div className="timer-done" role="status"><Check size={18} /><span>{t("workout.timerDone")}</span><button aria-label={t("common.close")} onClick={() => setTimerDone(false)}><X size={15} /></button></div>}
+      <footer className={`workout-action-dock${allHandled ? " completed" : ""}`}>
+        {undoSnapshot && <div className="undo-bar" role="status"><span>{t("workout.undoHelp")}</span><button onClick={undoLastAction}><Undo2 size={16} /> {t("common.undo")}</button><button aria-label={t("common.close")} onClick={() => setUndoSnapshot(null)}><X size={15} /></button></div>}
+        {timerEnd && <div className="workout-rest-timer" role="timer" aria-live="polite"><TimerReset size={20} /><span><small>{t("common.rest")}{latestLoggedSet ? ` · ${setLoadText(latestLoggedSet)} × ${latestLoggedSet.reps}` : ""}</small><strong>{formatDuration(remaining)}</strong></span><div><button onClick={() => changeTimer(15_000)}>+15s</button><button onClick={() => changeTimer(-15_000)}>−15s</button><button onClick={() => changeTimer(null)}>{t("common.skip")}</button></div></div>}
+        {timerDone && <div className="workout-timer-done" role="status"><Check size={17} /><span>{t("workout.timerDone")}</span><button aria-label={t("common.close")} onClick={() => setTimerDone(false)}><X size={15} /></button></div>}
+        {allHandled ? <div className="workout-completion-action"><span><Sparkles size={20} /><span><strong>{t("workout.sessionDone")}</strong><small>{completedSets} {t("workout.logged")}</small></span></span><button className="primary-button" onClick={finish}>{t("workout.complete")}</button></div> : <div className="workout-primary-actions"><button className="primary-button wide" disabled={submitting || reps < 1 || load < 0} onClick={completeSet}><Check size={20} /> {submitting ? t("workout.saving") : t("workout.completeSetNumber", { set: currentSetNumber })}</button><button className="skip-button" onClick={skipExercise}><SkipForward size={17} /> {t("workout.skipExercise")}</button></div>}
+      </footer>
 
       {!mobileViewport && showAlternatives && <ModalLayer onDismiss={() => setShowAlternatives(false)}>{alternativesPanel}</ModalLayer>}
 
@@ -832,9 +878,6 @@ function WorkoutView({ session, sessions, settings, onChange }: { session: Worko
 
       {editingSet && <ModalLayer onDismiss={() => setEditingSet(null)}><section className="modal set-editor-modal" role="dialog" aria-modal="true" aria-labelledby="set-editor-title" onClick={(event) => event.stopPropagation()}><header><div><span className="eyebrow">{t("workout.correctSet")}</span><h2 id="set-editor-title">{t("workout.editSet")}</h2></div><button className="icon-button" aria-label={t("common.close")} onClick={() => setEditingSet(null)}><X /></button></header><div className="number-fields"><NumberField label={t("workout.weight")} value={editingSet.load} suffix={settings.unit} min={0} step={settings.weightStep} onChange={(value) => setEditingSet({ ...editingSet, load: value })} /><NumberField label={t("workout.repetitions")} value={editingSet.reps} suffix={t("workout.repsShort")} min={1} step={1} onChange={(value) => setEditingSet({ ...editingSet, reps: value })} /></div><div className="rir-entry"><span>RIR</span><div>{[0, 1, 2, 3, 4].map((value) => <button key={value} className={editingSet.rir === value ? "active" : ""} onClick={() => setEditingSet({ ...editingSet, rir: value })}>{value}{value === 4 ? "+" : ""}</button>)}</div></div><button className="primary-button wide" onClick={saveEditedSet}><Check size={18} /> {t("common.save")}</button></section></ModalLayer>}
 
-      {undoSnapshot && <div className="undo-bar" role="status"><span>{t("workout.undoHelp")}</span><button onClick={undoLastAction}><Undo2 size={16} /> {t("common.undo")}</button><button aria-label={t("common.close")} onClick={() => setUndoSnapshot(null)}><X size={15} /></button></div>}
-
-      {allHandled && <div className="completion-dock"><div><Sparkles /><span><strong>{t("workout.sessionDone")}</strong><small>{completedSets} {t("workout.logged")}</small></span></div><button className="primary-button" onClick={finish}>{t("workout.complete")}</button></div>}
     </div>
   );
 }
