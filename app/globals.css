@@ -667,7 +667,7 @@ h1, h2, h3, .brand strong { font-family: "Arial Narrow", "Helvetica Neue", Arial
   .resume-card > div:last-child { align-items: stretch; flex-direction: column; }
   .connection-status { position: absolute; top: 9px; right: 10px; }
   .timer-bar { grid-template-columns: 24px 1fr repeat(3, auto); }
-  .modal-backdrop { align-items: flex-end; padding: max(12px, env(safe-area-inset-top)) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+  .modal-backdrop { align-items: flex-end; padding: max(12px, env(safe-area-inset-top)) env(safe-area-inset-right) 0 env(safe-area-inset-left); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .modal { width: 100%; max-height: calc(100vh - 12px); max-height: calc(100dvh - max(12px, env(safe-area-inset-top))); border-radius: 22px 22px 0 0; padding-bottom: max(22px, env(safe-area-inset-bottom)); }
   .exercise-picker { padding: 20px 14px max(22px, env(safe-area-inset-bottom)); }
   .exercise-queue > button { grid-template-columns: 34px 1fr auto; padding: 8px 9px; }

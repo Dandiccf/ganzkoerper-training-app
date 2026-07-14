@@ -1,4 +1,4 @@
-const CACHE = "kraftwerk-v10";
+const CACHE = "kraftwerk-v11";
 const MUSCLE_IMAGES = ["a", "b", "c"].flatMap((day) =>
   Array.from({ length: 9 }, (_, index) => `/muscle-groups/${day}-${index + 1}.png`)
 );
@@ -21,7 +21,7 @@ async function precacheAppShell() {
 }
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(precacheAppShell());
+  event.waitUntil(precacheAppShell().then(() => self.skipWaiting()));
 });
 
 self.addEventListener("message", (event) => {
