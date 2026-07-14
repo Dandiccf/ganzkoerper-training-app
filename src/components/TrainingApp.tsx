@@ -241,6 +241,12 @@ export function TrainingApp() {
     document.title = locale === "de" ? "Kraftwerk – Ganzkörpertraining" : "Kraftwerk – Full-Body Training";
   }, [locale]);
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    const frame = window.requestAnimationFrame(() => window.scrollTo(0, 0));
+    return () => window.cancelAnimationFrame(frame);
+  }, [view]);
+
   const active = sessions.find((session) => session.status === "active");
   const paused = sessions.find((session) => session.status === "paused");
   const nextCode = nextDayCode(sessions);
